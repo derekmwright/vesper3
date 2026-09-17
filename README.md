@@ -1,4 +1,6 @@
-# WorldBuild — Vesper III
+# Vesper III
+
+**A showcase game for [glyphengine](https://github.com/derekmwright/glyphengine).**
 
 A colony builder on a hex grid, in true 3D, on a planet that is not Earth.
 
@@ -7,7 +9,50 @@ under it is real geometry: hexagonal columns with cliff faces, cast shadows, a
 day/night cycle that decides whether the solar arrays are producing, and a
 methane sea with waves in it.
 
-Built on [glyphengine](https://github.com/derekmwright/glyphengine).
+## What this is for
+
+glyphengine is a Go game engine on Vulkan. This is the first complete game
+built on it from outside, and it exists to answer two questions that an
+engine's own examples cannot:
+
+**What does the engine look like in the hands of someone who did not write it?**
+Every example in an engine repository is written by the person who knows which
+call to reach for. This one was not. Where the engine is good, that shows up
+here as code that is short and obvious. Where it is not, it shows up as a
+workaround with a comment explaining what was in the way — and usually an issue
+number beside it.
+
+**What does a whole game need that a demo does not?** A rotating cube needs a
+mesh and a matrix. A game needs a save format, an interface that stays readable
+at four different window sizes, art that survives a re-export, a build that
+someone else can run, and a way to reproduce a screenshot six weeks later. Most
+of the interesting decisions in this repository are about those, not about
+Vulkan.
+
+It is a real game, not a technology demo. It is played rather than watched, the
+economy closes, and the parts you would expect to be faked are not.
+
+### If you are reading this to learn the engine
+
+The code is commented for that. Comments here explain *why*, not what, and the
+ones worth finding are the ones that start with a mistake — the winding
+convention derived from the engine's own `CreatePlane` rather than reasoned
+about, the mesh capacity that silently truncates, the sRGB conversion that was
+right until the engine fixed the thing it was compensating for.
+
+Suggested reading order:
+
+| | |
+|---|---|
+| `internal/hex` | no engine dependency at all. Start here to see the shape of the project. |
+| `internal/world`, `internal/colony` | the simulation. Also no engine dependency, and tested without a GPU. |
+| `internal/meshgen` | geometry to `renderer.Vertex`. Where the engine's conventions start to matter. |
+| `internal/game/game.go` | the frame loop, and the only type that knows an `Engine` exists. |
+| `internal/game/events.go` | every subscription in the project, in one function. |
+| `internal/game/hud.go` | the interface toolkit, and the sRGB story. |
+
+`docs/` has the captures. Every one was taken by the game itself with
+`-screenshot`, and the flags to re-take it are in the caption.
 
 ![The title card: a hexagonal badge over a ringed planet, with a lit colony dome on the horizon](docs/splash.png)
 
@@ -23,17 +68,49 @@ happened to be when it ran.*
 ## Running it
 
 ```
-go run .                        # a new planet from a random seed
-go run . -seed 20260916         # the same planet every time
-go run . -cols 64 -rows 64      # a bigger continent
-go run . -frames 120 -screenshot shot.png   # render and exit
+task run                        # a new planet from a random seed
+task run -- -seed 20260916      # the same planet every time
+task run -- -cols 64 -rows 64   # a bigger continent
+task run -- -demo               # a sample colony already standing, for screenshots
+
+task            # everything there is to run, listed
+task check      # formatting, vet, tests, and the art contract
+task dist       # one executable you can hand to someone
 ```
 
-Needs what the engine needs: Go 1.26+, CGo with a C compiler, a Vulkan runtime
-and a GPU. Windows is the supported platform.
+Plain `go run .` works too; the [Taskfile](Taskfile.yml) is a collection of the
+commands this was actually built with rather than a layer over them.
+
+**To build:** Go 1.26+ and CGo with a C compiler, because GLFW and the Vulkan
+wrapper are cgo. **To run:** a GPU and driver with Vulkan 1.1.
+
+Windows and Linux are built and tested. macOS should work as of
+[glyphengine#20](https://github.com/derekmwright/glyphengine/issues/20) but has
+not been run by anyone yet — `task dist:macos` builds the `.app` and bundles
+MoltenVK, and [#23](https://github.com/derekmwright/glyphengine/issues/23) and
+[#24](https://github.com/derekmwright/glyphengine/issues/24) are the two things
+to expect if it misbehaves. Reports welcome.
 
 The engine is pinned to a commit in `go.mod` rather than a tag, because it is
-v0.x and says outright that it breaks APIs without notice.
+v0.x and says outright that it breaks APIs without notice. Bumping it is a
+deliberate act here, not a `go get -u`: the commit history records which engine
+change each bump was for and what it required on this side.
+
+### Distributing it
+
+`task dist` produces one executable with every asset embedded — no folder
+beside it, nothing to install or unpack — plus the controls and the font
+licence:
+
+```
+dist/vesper.exe        16 MB
+dist/README.md
+dist/LICENSE-Exo2.txt
+```
+
+16 MB rather than 72: the models are authored with 2048x2048 maps and baked
+down to 512 by `cmd/texscale` before they are embedded. See
+[the bake](#the-bake).
 
 ## Controls
 
@@ -473,27 +550,49 @@ vertex data, so those genuinely cannot be tinted.
 
 ## What this fed back into the engine
 
-Being the first game built on glyphengine from outside turned up four things,
-all since fixed upstream and all in use here:
+This is the part that makes it a showcase rather than a sample. Building a
+whole game on a young engine finds things, and every one of them was filed with
+the measurement that found it rather than as an opinion.
 
-- [#6](https://github.com/derekmwright/glyphengine/issues/6) — overlays were
-  composited into the HDR scene target *before* the water, bloom and tonemap
-  passes, so water refracted the HUD and erased most of it. Found by looking at
-  a wide shot of this map and wondering why the text was wavy.
-- [#5](https://github.com/derekmwright/glyphengine/issues/5) — no blended pass,
-  so a placement preview had to be an opaque full-bright solid. The ghost is a
-  real translucent object now.
-- [#4](https://github.com/derekmwright/glyphengine/issues/4) — no `ShaderSet`
-  passthrough on `glyph.New`.
-- [#3](https://github.com/derekmwright/glyphengine/issues/3) — no generic mesh
-  instancing.
+**Fixed upstream, and in use here:**
 
-Still open, and the reason the sky is still Earth's:
-[#12](https://github.com/derekmwright/glyphengine/issues/12) — the sky palette
-is baked into `atmosphere.inc`, which `applyFog` shares, so changing it through
-`WithShaders` means vendoring 430 lines of engine lighting code into this repo
-to edit six constants. Not a trade worth making; waiting for the palette to
-become data.
+| | |
+|---|---|
+| [#3](https://github.com/derekmwright/glyphengine/issues/3) | no generic mesh instancing |
+| [#4](https://github.com/derekmwright/glyphengine/issues/4) | no `ShaderSet` passthrough on `glyph.New` |
+| [#5](https://github.com/derekmwright/glyphengine/issues/5) | no blended pass, so a placement preview had to be an opaque full-bright solid. The ghost is a real translucent object now. |
+| [#6](https://github.com/derekmwright/glyphengine/issues/6) | overlays were composited into the HDR scene target *before* the water, bloom and tonemap passes, so water refracted the HUD and erased most of it. Found by looking at a wide shot of this map and wondering why the text was wavy. |
+| [#13](https://github.com/derekmwright/glyphengine/issues/13) | overlay colours were linear while documented as sRGB, so a HUD backdrop written as 0.05 arrived at 0.24. See the note above the palette in `hud.go` — the fix required deleting this game's compensating helper *in the same commit* as the engine bump, or the conversion applies twice. |
+| [#14](https://github.com/derekmwright/glyphengine/issues/14) | panel mode hardcoded its interior fill, so a game could not choose its own panel colour |
+| [#20](https://github.com/derekmwright/glyphengine/issues/20) | macOS: the instance and device missed the two portability opt-ins MoltenVK requires. Without them `vkEnumeratePhysicalDevices` returns zero devices on a Mac and it surfaces as "no GPU found" on a machine with a perfectly good one. |
+
+**Open, and why they matter here:**
+
+| | |
+|---|---|
+| [#12](https://github.com/derekmwright/glyphengine/issues/12) | the sky palette is baked into `atmosphere.inc`, which `applyFog` shares. Changing it through `WithShaders` means vendoring 430 lines of engine lighting into this repo to edit six constants. This is why the sky over an alien planet is still Earth's. |
+| [#19](https://github.com/derekmwright/glyphengine/issues/19) | `LoadGLTF` returns GPU handles and discards the geometry it just decoded, so a model cannot be merged, measured or derived from. The placement ghost is one translucent entity per primitive because of it. |
+| [#21](https://github.com/derekmwright/glyphengine/issues/21) | `ModelMesh` drops the glTF material name, so the only way to identify a primitive is its base colour. This is why `internal/artcheck` matches floating-point colours with a tolerance, and why `cmd/modelcheck` exists at all. |
+| [#23](https://github.com/derekmwright/glyphengine/issues/23) | a machine with no Vulkan driver gets a null proc address rather than a message saying so. That is the default state of every Mac. |
+| [#24](https://github.com/derekmwright/glyphengine/issues/24) | `MousePos` is in screen points, `ScreenRay` divides by framebuffer pixels. They agree on a 1:1 display and are out by 2x on a Retina one. |
+
+Instancing is deliberately **not** adopted. A colony reaches a few dozen
+structures in normal play, so batching would save a few dozen draw calls
+against a frame already comfortably inside budget — and the issue asking for it
+says to measure before building on it, which applies just as much to using it.
+Worth revisiting if colonies get into the thousands.
+
+### On filing engine issues from a game
+
+Every issue above says what was measured, on what, and what it cost. Two of
+them include a correction the engine author made to my diagnosis after
+measuring — one where I predicted a Windows no-op and was wrong — and that is
+the point rather than an embarrassment. An issue that reports a number can be
+argued with. An issue that reports a feeling cannot.
+
+Three of them say plainly that the finding was read from source rather than
+from a failing run, because I do not have a Mac. Saying so is what makes the
+other twelve trustworthy.
 
 Instancing is deliberately **not** adopted yet. A colony reaches a few dozen
 structures in normal play, so batching would save a few dozen draw calls
