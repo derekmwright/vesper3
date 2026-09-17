@@ -578,9 +578,8 @@ falls back to text-only slots rather than refusing to start.
 ## Structure models
 
 ```
-assets/models/*.glb      the structures that have been modelled
-tools/models/build_*.py  the Blender script each one is built by
-tools/models/build.sh    runs them all headless
+assets/models-src/*.glb  the authored models, as they come out of the DCC tool
+assets/models/*.glb      what the game embeds: the same models, textures baked down
 ```
 
 Structures are loaded from glTF when a model exists for them and fall back to
@@ -588,27 +587,67 @@ the procedural geometry in `internal/meshgen` when it does not, so the set can
 be replaced one at a time rather than all at once — and a build with no
 `assets/models` at all still runs.
 
-The scripts cap a model's footprint radius at 0.80 metres. A hexagon of
+A model's footprint radius has to stay under 0.80 metres. A hexagon of
 circumradius 1 has an inradius of 0.87, so a model at 1:1 reaches almost to its
 own tile edge and a row of them reads as one continuous mass; `modelScale`
 brings them to about where the procedural shapes sit, which is what makes the
-two sets look like one game.
-
-The models are *procedural*: each is a readable Python script that builds its
-shape from primitives, not a binary nobody can diff. Each validates its own
-footprint radius, ground contact, height and triangle budget and refuses to
-export something that will not sit correctly on a tile. Rebuild with:
-
-```
-tools/models/build.sh          # or BLENDER=/path/to/blender tools/models/build.sh
-```
+modelled and procedural sets look like one game.
 
 A glTF exporter splits a mesh by material, so a three-material building arrives
 as three primitives. Those become three entities sharing one transform, which
-is why `buildingEnt` maps a tile to a *slice*. The placement ghost stays
-procedural either way: it is drawn white under a green or red tint, and a
-modelled mesh carries its own material colours, which would multiply into
-something muddy.
+is why `buildingEnt` maps a tile to a *slice*.
+
+### The bake
+
+Models are authored with 2048x2048 base-colour and surface maps. That is the
+right thing to keep — a source that has been thrown away cannot be re-cut, and
+the next screen is always bigger — and the wrong thing to ship. A structure
+covers about a hundred pixels at the camera distance this game is played at, so
+eight pairs of 2048 maps were spending 55 MB to describe detail nobody sees,
+and took the release binary to 72 MB.
+
+So `assets/models-src` is the source and `assets/models` is the bake:
+
+```
+task models:bake      # or: go run ./cmd/texscale -src assets/models-src -out assets/models -size 512
+```
+
+`cmd/texscale` rewrites the glTF with its textures capped, copying geometry
+through untouched and preserving every field it does not understand — a glTF
+carries extensions, and a rewrite that silently dropped one would be worse than
+not rewriting at all. 55 MB of textures becomes 7.4 MB and the release binary
+goes from 72 MB to 15 MB. At three times magnification the two are
+indistinguishable.
+
+### The art contract
+
+Three structures are animated by *material*. The game finds the battery bank's
+four charge strips and its status lamp, the condenser's fin band, and the
+greenhouse's grow lights by matching the base colour their primitive arrived
+with, then drives that primitive's emission from the simulation. There is no
+other handle: `renderer.ModelMesh` does not carry the material name, so an
+exact colour is all there is to match on.
+
+That makes the art load-bearing, and it fails *silently*. A model re-exported
+with its indicator merged into the body, or with a colour a thousandth off,
+loads perfectly and simply never lights up.
+
+```
+task models:check     # or: go run ./cmd/modelcheck assets/models-src/*.glb
+```
+
+This is not a hypothetical failure. An earlier version of this project kept the
+models under a set of procedural Blender scripts, and those scripts went stale:
+they produced two materials where the shipped battery had six. Running them
+regenerated all eight models, replaced every textured one with an untextured
+one, and reported success. The models were recovered by scanning a stale binary
+for glTF headers.
+
+`internal/artcheck` holds the colours and the rule for reading them, in a
+package with no engine dependency so a command-line tool can use it. The tests
+in `internal/game/models_test.go` assert the shipped art through the game's own
+matchers rather than restating the colours, so retuning a marker retunes the
+test with it — and `task check` runs the lot.
 
 The typeface is [Exo 2](https://fonts.google.com/specimen/Exo+2), bundled under
 the SIL Open Font Licence — the licence travels with it in

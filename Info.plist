@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The macOS application bundle's manifest. Copied into Contents/ by
+  `task dist:macos`.
+
+  Two entries here are doing real work rather than filling in a form:
+
+  LSMinimumSystemVersion is 10.15 because that is where Metal's argument
+  buffers land, which is what MoltenVK translates descriptor sets onto.
+
+  NSHighResolutionCapable has to be true or AppKit hands the window a
+  point-sized framebuffer and scales it up, which on a Retina display looks
+  like the game is rendering at half resolution — because it is.
+-->
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key>
+  <string>Vesper III</string>
+
+  <key>CFBundleDisplayName</key>
+  <string>Vesper III</string>
+
+  <key>CFBundleIdentifier</key>
+  <string>com.derekmwright.vesper3</string>
+
+  <!-- The binary inside Contents/MacOS, which the Taskfile names {{.BIN}}. -->
+  <key>CFBundleExecutable</key>
+  <string>vesper</string>
+
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+
+  <key>CFBundleShortVersionString</key>
+  <string>0.1.0</string>
+
+  <key>CFBundleVersion</key>
+  <string>1</string>
+
+  <key>LSMinimumSystemVersion</key>
+  <string>10.15</string>
+
+  <key>NSHighResolutionCapable</key>
+  <true/>
+
+  <key>NSHumanReadableCopyright</key>
+  <string>Built on glyphengine. Interface set in Exo 2 under the SIL Open Font Licence.</string>
+</dict>
+</plist>

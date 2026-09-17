@@ -125,12 +125,8 @@ tasks:
       - go run ./cmd/iconatlas -src assets/icons-src -out assets/icons.png
 
   models:
-    desc: Re-author the models with Blender, then bake and verify them
+    desc: Bake and verify the models (alias for models:bake)
     cmds:
-      # build.sh writes to assets/models-src and refuses to promote an export
-      # that does not pass models:check. The bake below is what the game
-      # actually embeds.
-      - tools/models/build.sh
       - task: models:bake
 
   models:bake:
@@ -208,17 +204,68 @@ tasks:
           ls -la "$name.zip" | awk '{printf "%s  %.1f MB\n", $9, $5/1048576}'
 
   dist:cross:
-    desc: Cross-compile release binaries (needs zig; see the README)
+    desc: Cross-compile release binaries for Linux and Windows (needs zig)
     deps: [dist-dir]
     cmds:
       # GLFW is cgo, so a cross build needs a cross C toolchain. zig cc is the
       # one that works without installing a per-target gcc, which is why it is
       # named here rather than left as an exercise.
+      #
+      # macOS is deliberately not in this list. A darwin build needs the macOS
+      # SDK and its frameworks, which cannot be redistributed and so cannot be
+      # fetched by a cross toolchain — the build has to happen on a Mac, or on
+      # a macOS CI runner. See dist:macos.
       - task: cross
         vars: {GOOS: linux, GOARCH: amd64, CC: 'zig cc -target x86_64-linux-gnu', SUFFIX: ''}
       - task: cross
         vars: {GOOS: windows, GOARCH: amd64, CC: 'zig cc -target x86_64-windows-gnu', SUFFIX: '.exe'}
       - ls -la {{.DIST}}
+
+  dist:macos:
+    desc: Build a macOS .app bundle (run this ON a Mac)
+    deps: [dist-dir]
+    preconditions:
+      - sh: '[ "$(uname)" = "Darwin" ]'
+        msg: >-
+          dist:macos has to run on a Mac. A darwin build needs the macOS SDK,
+          which cannot be redistributed, so there is no cross-compile for it.
+    vars:
+      APP: '{{.DIST}}/Vesper III.app'
+    cmds:
+      - task: check
+      - mkdir -p "{{.APP}}/Contents/MacOS" "{{.APP}}/Contents/Resources"
+      - >-
+        CGO_ENABLED=1 go build -trimpath -ldflags "{{.LDFLAGS}}"
+        -o "{{.APP}}/Contents/MacOS/{{.BIN}}" .
+
+      # MoltenVK is the Vulkan driver on macOS, and a machine that has never
+      # had the LunarG SDK installed does not have one. A bundle that does not
+      # carry its own finds no GPU and exits — so the dylib and the ICD JSON
+      # that points at it travel inside.
+      - cmd: |
+          icd="$(ls "$VULKAN_SDK"/share/vulkan/icd.d/MoltenVK_icd.json 2>/dev/null | head -1)"
+          lib="$(ls "$VULKAN_SDK"/lib/libMoltenVK.dylib 2>/dev/null | head -1)"
+          if [ -z "$icd" ] || [ -z "$lib" ]; then
+            echo "MoltenVK not found. Install the LunarG Vulkan SDK and set VULKAN_SDK," >&2
+            echo "or copy libMoltenVK.dylib and MoltenVK_icd.json in by hand." >&2
+            exit 1
+          fi
+          mkdir -p "{{.APP}}/Contents/Frameworks" "{{.APP}}/Contents/Resources/vulkan/icd.d"
+          cp "$lib" "{{.APP}}/Contents/Frameworks/"
+          cp "$icd" "{{.APP}}/Contents/Resources/vulkan/icd.d/"
+
+      - cp Info.plist "{{.APP}}/Contents/Info.plist"
+      - cp PLAYING.md {{.DIST}}/README.md
+      - cp assets/fonts/OFL.txt {{.DIST}}/LICENSE-Exo2.txt
+      - cmd: |
+          echo
+          echo "Built {{.APP}}"
+          echo
+          echo "  Unsigned. Gatekeeper will refuse it on another Mac until it is"
+          echo "  signed and notarised:"
+          echo "    codesign --deep --force --options runtime \\"
+          echo "      --sign 'Developer ID Application: NAME (TEAMID)' '{{.APP}}'"
+          echo "    xcrun notarytool submit ... && xcrun stapler staple '{{.APP}}'"
 
   cross:
     internal: true
