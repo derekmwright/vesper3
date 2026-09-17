@@ -3,8 +3,8 @@ package game
 import (
 	glyph "github.com/derekmwright/glyphengine"
 
-	"github.com/derekmwright/worldbuild/internal/colony"
-	"github.com/derekmwright/worldbuild/internal/hex"
+	"github.com/derekmwright/vesper3/internal/colony"
+	"github.com/derekmwright/vesper3/internal/hex"
 )
 
 // The demo colony: a few structures put down around the landing site, for a

@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 // solarColony is a colony that runs entirely on sunlight, with as much storage

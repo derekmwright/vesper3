@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/derekmwright/worldbuild/internal/colony"
-	"github.com/derekmwright/worldbuild/internal/hex"
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/colony"
+	"github.com/derekmwright/vesper3/internal/hex"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 // A save has to come back carrying everything the player earned and

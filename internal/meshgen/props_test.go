@@ -3,7 +3,7 @@ package meshgen
 import (
 	"testing"
 
-	"github.com/derekmwright/worldbuild/internal/colony"
+	"github.com/derekmwright/vesper3/internal/colony"
 )
 
 // Builder.Tri flips the winding when the caller hands it corners the other

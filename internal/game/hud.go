@@ -12,7 +12,7 @@ import (
 	"github.com/derekmwright/glyphengine/msdf"
 	"github.com/derekmwright/glyphengine/renderer"
 	"github.com/derekmwright/glyphengine/ui"
-	"github.com/derekmwright/worldbuild/internal/colony"
+	"github.com/derekmwright/vesper3/internal/colony"
 )
 
 // hudMaxQuads bounds the dynamic mesh the whole interface is built into. The

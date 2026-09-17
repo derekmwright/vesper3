@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 // The readout is the only thing a player ever sees of the economy, so it is

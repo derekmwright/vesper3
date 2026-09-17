@@ -3,9 +3,9 @@ package game
 import (
 	"testing"
 
-	"github.com/derekmwright/worldbuild/internal/artcheck"
-	"github.com/derekmwright/worldbuild/internal/colony"
-	"github.com/derekmwright/worldbuild/internal/hex"
+	"github.com/derekmwright/vesper3/internal/artcheck"
+	"github.com/derekmwright/vesper3/internal/colony"
+	"github.com/derekmwright/vesper3/internal/hex"
 )
 
 // The battery bank shows two different things, and the split is the point.

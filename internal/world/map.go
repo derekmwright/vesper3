@@ -3,7 +3,7 @@ package world
 import (
 	"fmt"
 
-	"github.com/derekmwright/worldbuild/internal/hex"
+	"github.com/derekmwright/vesper3/internal/hex"
 )
 
 // The vertical and horizontal scale of the world. TileSize is a hexagon

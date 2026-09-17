@@ -4,8 +4,8 @@ import (
 	glyph "github.com/derekmwright/glyphengine"
 	"github.com/derekmwright/glyphengine/input"
 
-	"github.com/derekmwright/worldbuild/internal/colony"
-	"github.com/derekmwright/worldbuild/internal/hex"
+	"github.com/derekmwright/vesper3/internal/colony"
+	"github.com/derekmwright/vesper3/internal/hex"
 )
 
 // confirmPrompt is a question waiting for an answer.

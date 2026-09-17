@@ -7,9 +7,9 @@ import (
 	glyph "github.com/derekmwright/glyphengine"
 	"github.com/go-gl/mathgl/mgl32"
 
-	"github.com/derekmwright/worldbuild/internal/colony"
-	"github.com/derekmwright/worldbuild/internal/hex"
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/colony"
+	"github.com/derekmwright/vesper3/internal/hex"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 func TestCondenserSweepLoopsAndFadesAtTheSeam(t *testing.T) {

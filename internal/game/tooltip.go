@@ -5,8 +5,8 @@ import (
 
 	glyph "github.com/derekmwright/glyphengine"
 
-	"github.com/derekmwright/worldbuild/internal/colony"
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/colony"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 // uiScale converts design units to pixels.

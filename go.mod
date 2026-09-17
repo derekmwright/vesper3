@@ -1,4 +1,4 @@
-module github.com/derekmwright/worldbuild
+module github.com/derekmwright/vesper3
 
 go 1.26.2
 

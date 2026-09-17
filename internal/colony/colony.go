@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/derekmwright/worldbuild/internal/hex"
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/hex"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 // Starting stores. Enough to put down a power source, a mine and a habitat

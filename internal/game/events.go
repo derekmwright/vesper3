@@ -5,9 +5,9 @@ import (
 
 	glyph "github.com/derekmwright/glyphengine"
 
-	"github.com/derekmwright/worldbuild/internal/colony"
-	"github.com/derekmwright/worldbuild/internal/event"
-	"github.com/derekmwright/worldbuild/internal/hex"
+	"github.com/derekmwright/vesper3/internal/colony"
+	"github.com/derekmwright/vesper3/internal/event"
+	"github.com/derekmwright/vesper3/internal/hex"
 )
 
 // The game's event vocabulary: the things that happen, as opposed to the

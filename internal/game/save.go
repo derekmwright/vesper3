@@ -8,8 +8,8 @@ import (
 
 	glyph "github.com/derekmwright/glyphengine"
 
-	"github.com/derekmwright/worldbuild/internal/colony"
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/colony"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 // saveVersion guards against loading a file written by a build whose map or

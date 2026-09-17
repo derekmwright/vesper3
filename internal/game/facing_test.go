@@ -4,9 +4,9 @@ import (
 	"math"
 	"testing"
 
-	"github.com/derekmwright/worldbuild/internal/colony"
-	"github.com/derekmwright/worldbuild/internal/hex"
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/colony"
+	"github.com/derekmwright/vesper3/internal/hex"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 // Facings are sixths of a turn because that is the grid's symmetry. Any other

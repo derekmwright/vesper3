@@ -3,7 +3,7 @@ package world
 import (
 	"testing"
 
-	"github.com/derekmwright/worldbuild/internal/hex"
+	"github.com/derekmwright/vesper3/internal/hex"
 )
 
 func TestOffsetRoundTrip(t *testing.T) {

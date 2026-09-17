@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 // The whole reason Flow keeps both halves: a net rate cannot distinguish these

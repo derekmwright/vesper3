@@ -3,7 +3,7 @@ package world
 import (
 	"math"
 
-	"github.com/derekmwright/worldbuild/internal/hex"
+	"github.com/derekmwright/vesper3/internal/hex"
 )
 
 // Generate fills a map with a continent surrounded by methane sea.

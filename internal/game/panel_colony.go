@@ -3,8 +3,8 @@ package game
 import (
 	"fmt"
 
-	"github.com/derekmwright/worldbuild/internal/colony"
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/colony"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 // The colony readout: the resource panel, the advisory strip under it, and the

@@ -3,8 +3,8 @@ package game
 import (
 	"github.com/go-gl/mathgl/mgl32"
 
-	"github.com/derekmwright/worldbuild/internal/hex"
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/hex"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 // Picking steps along the ray this far at a time. A tile is two units across

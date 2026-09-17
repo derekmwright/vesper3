@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 // stocked returns a colony on the named ground with enough of both ores to

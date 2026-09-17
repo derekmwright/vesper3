@@ -5,8 +5,8 @@ import (
 
 	"github.com/go-gl/mathgl/mgl32"
 
-	"github.com/derekmwright/worldbuild/internal/hex"
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/hex"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 // The case the whole cursor rests on: a ray straight down over a tile has to

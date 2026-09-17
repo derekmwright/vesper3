@@ -5,8 +5,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/derekmwright/worldbuild/internal/hex"
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/hex"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 func TestPlaceChargesOreAndRecordsTheBuilding(t *testing.T) {

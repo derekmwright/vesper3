@@ -1,7 +1,7 @@
 package game
 
 import (
-	"github.com/derekmwright/worldbuild/internal/colony"
+	"github.com/derekmwright/vesper3/internal/colony"
 )
 
 // The build bar along the bottom: what can be built, what it costs, and

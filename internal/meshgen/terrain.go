@@ -22,8 +22,8 @@ package meshgen
 import (
 	"github.com/derekmwright/glyphengine/renderer"
 
-	"github.com/derekmwright/worldbuild/internal/hex"
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/hex"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 // Chunk dimensions in tiles. 8x8 keeps a chunk under 2,400 vertices, which

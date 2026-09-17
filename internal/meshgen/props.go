@@ -1,7 +1,7 @@
 package meshgen
 
 import (
-	"github.com/derekmwright/worldbuild/internal/colony"
+	"github.com/derekmwright/vesper3/internal/colony"
 )
 
 // Structure sizes are relative to a tile's circumradius of 1. A hexagon's

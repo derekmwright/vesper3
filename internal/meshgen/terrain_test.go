@@ -5,8 +5,8 @@ import (
 
 	"github.com/derekmwright/glyphengine/renderer"
 
-	"github.com/derekmwright/worldbuild/internal/hex"
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/hex"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 // Backface culling is a silent failure: get the winding wrong and the terrain

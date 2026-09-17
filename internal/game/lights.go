@@ -6,8 +6,8 @@ import (
 	"github.com/go-gl/mathgl/mgl32"
 
 	glyph "github.com/derekmwright/glyphengine"
-	"github.com/derekmwright/worldbuild/internal/artcheck"
-	"github.com/derekmwright/worldbuild/internal/colony"
+	"github.com/derekmwright/vesper3/internal/artcheck"
+	"github.com/derekmwright/vesper3/internal/colony"
 )
 
 // Colony lighting.

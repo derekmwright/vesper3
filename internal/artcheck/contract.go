@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/derekmwright/worldbuild/internal/colony"
+	"github.com/derekmwright/vesper3/internal/colony"
 )
 
 // The markers, and the rule for reading them.

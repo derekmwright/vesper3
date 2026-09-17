@@ -6,8 +6,8 @@ import (
 	glyph "github.com/derekmwright/glyphengine"
 	"github.com/derekmwright/glyphengine/renderer"
 
-	"github.com/derekmwright/worldbuild/internal/colony"
-	"github.com/derekmwright/worldbuild/internal/meshgen"
+	"github.com/derekmwright/vesper3/internal/colony"
+	"github.com/derekmwright/vesper3/internal/meshgen"
 )
 
 // The placement preview.

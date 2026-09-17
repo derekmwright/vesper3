@@ -24,7 +24,7 @@ import (
 
 	glyph "github.com/derekmwright/glyphengine"
 
-	"github.com/derekmwright/worldbuild/internal/game"
+	"github.com/derekmwright/vesper3/internal/game"
 )
 
 // assetsFS carries the game art into the binary, so a built worldbuild is one

@@ -3,8 +3,8 @@ package meshgen
 import (
 	"testing"
 
-	"github.com/derekmwright/worldbuild/internal/hex"
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/hex"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 // The engine's UpdateMeshData clamps to the buffer it was given and returns

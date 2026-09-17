@@ -23,8 +23,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/derekmwright/worldbuild/internal/artcheck"
-	"github.com/derekmwright/worldbuild/internal/colony"
+	"github.com/derekmwright/vesper3/internal/artcheck"
+	"github.com/derekmwright/vesper3/internal/colony"
 )
 
 func main() {

@@ -54,16 +54,35 @@ Suggested reading order:
 `docs/` has the captures. Every one was taken by the game itself with
 `-screenshot`, and the flags to re-take it are in the caption.
 
+![A colony on a basalt ridge: domes, solar arrays, a greenhouse and a battery bank, with the resource panel and build bar around them. A red translucent dome marks a placement that is not allowed.](docs/hud.png)
+
+*A colony in the afternoon. The red dome is the placement preview refusing an
+occupied tile — it is the real habitat mesh with its material stripped, not a
+stand-in. The panel reads left to right as stock, rate and runway; the strip
+under it names the building that fixes the problem rather than restating the
+number.*
+
+![The same colony after dark: green charge strips on the battery banks, cyan grow lights in the greenhouse, amber deck lamps, and a translucent green dome showing where the next habitat would go](docs/dusk.png)
+
+*The same colony after sunset. The lights are not decoration — lamp brightness
+is the power grid's satisfaction, so a colony that cannot cover its own demand
+after dark goes dark. The battery banks show their charge on four strips and
+their state on the lamp above them; the greenhouse's grow lights are on because
+it has the power to run them.*
+
+![The continent of Vesper III from the top of the camera's zoom, hexagonal terrain in ochre, green and slate running to a methane sea](docs/vesper.png)
+
+*The whole continent. Every tile is real geometry with cliff faces and cast
+shadows, chunked 8x8 into one draw call each.*
+
 ![The title card: a hexagonal badge over a ringed planet, with a lit colony dome on the horizon](docs/splash.png)
 
-![The continent of Vesper III seen from the top of the camera's zoom](docs/vesper.png)
-
-![The landing site: a habitat and a solar array on a basalt ridge, with the resource panel, advisory strip and build bar around it](docs/hud.png)
-
-*Both captured with `-screenshot`, by the game itself. `-camdist`, `-campitch`,
-`-camyaw`, `-cursorx` and `-cursory` pin the camera and the pick ray so a
-capture can be re-taken exactly, instead of depending on where the mouse
-happened to be when it ran.*
+*All four were captured by the game itself with `-screenshot`. `-camdist`,
+`-campitch`, `-camyaw`, `-cursorx`, `-cursory` and `-timeofday` pin the camera,
+the pick ray and the clock, so a capture can be re-taken exactly instead of
+depending on where the mouse happened to be and what time the run reached.
+`-demo` puts the colony there. The exact commands are in the Taskfile under
+`task shot`.*
 
 ## Running it
 

@@ -9,7 +9,7 @@ package colony
 import (
 	"fmt"
 
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 // Kind identifies a type of structure.

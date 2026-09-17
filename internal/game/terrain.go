@@ -10,10 +10,10 @@ import (
 	glyph "github.com/derekmwright/glyphengine"
 	"github.com/derekmwright/glyphengine/renderer"
 
-	"github.com/derekmwright/worldbuild/internal/colony"
-	"github.com/derekmwright/worldbuild/internal/hex"
-	"github.com/derekmwright/worldbuild/internal/meshgen"
-	"github.com/derekmwright/worldbuild/internal/world"
+	"github.com/derekmwright/vesper3/internal/colony"
+	"github.com/derekmwright/vesper3/internal/hex"
+	"github.com/derekmwright/vesper3/internal/meshgen"
+	"github.com/derekmwright/vesper3/internal/world"
 )
 
 // heightmapSamplesPerTile is how finely the map is resampled into the
