@@ -20,45 +20,41 @@ import (
 // with, so drawHUD checks what it actually built rather than trusting this.
 const hudMaxQuads = 512
 
-// srgb converts a colour written the way it is picked — as it should look on
-// screen — into the linear value the overlay pipeline actually wants.
+// The interface palette, written the way the colours are picked: as they
+// should look on screen.
 //
-// Overlays are composited into an sRGB target, so the hardware encodes these
-// on the way out. A backdrop authored as a linear 0.05 therefore arrives on
-// screen at about 0.24: a mid slate, not the near-black it reads as in the
-// source. Every colour below is written in display space and converted here,
-// so what the constant says is what the pixel is.
-func srgb(r, g, b float32) [3]float32 {
-	conv := func(c float32) float32 {
-		if c <= 0.04045 {
-			return c / 12.92
-		}
-		return pow32((c+0.055)/1.055, 2.4)
-	}
-	return [3]float32{conv(r), conv(g), conv(b)}
-}
+// That is only true as of glyphengine#13. The overlay shaders used to pass a
+// game's colour straight through to a B8G8R8A8_SRGB swapchain, which meant the
+// hardware encoded it on the way out and declared it linear on the way in — so
+// a backdrop written as 0.05 meaning "nearly black" arrived at about 0.24, a
+// mid slate. This file used to carry an srgb() helper that converted every
+// constant below into linear to compensate.
+//
+// ui.frag and msdf.frag now decode with srgbToLinear themselves. The helper is
+// gone, and it had to go in the same change as the engine bump: leaving it in
+// would apply the conversion twice and take the whole interface near-black.
 
 // Palette, in display space. A HUD that has to be read at a glance while the
 // eye is on the map gets its meaning from colour before it gets it from text,
 // so these are shared by the bars, the numbers and the alert strip rather than
 // being picked per widget.
 var (
-	colInk      = srgb(0.945, 0.955, 0.968)
-	colDim      = srgb(0.786, 0.815, 0.849)
-	colGood     = srgb(0.680, 0.931, 0.748)
-	colWarn     = srgb(0.982, 0.876, 0.566)
-	colCritical = srgb(1.000, 0.680, 0.634)
-	colAccent   = srgb(0.810, 0.896, 0.978)
+	colInk      = [3]float32{0.945, 0.955, 0.968}
+	colDim      = [3]float32{0.786, 0.815, 0.849}
+	colGood     = [3]float32{0.680, 0.931, 0.748}
+	colWarn     = [3]float32{0.982, 0.876, 0.566}
+	colCritical = [3]float32{1.000, 0.680, 0.634}
+	colAccent   = [3]float32{0.810, 0.896, 0.978}
 
 	// Surfaces. Dark navy and close to black: the panels sit over a sunlit
 	// map, and anything lighter costs contrast against the text on top of
 	// them, which is the only reason the panels exist.
-	colPanel     = srgb(0.050, 0.060, 0.090)
-	colPanelEdge = srgb(0.350, 0.450, 0.580)
-	colBarBack   = srgb(0.160, 0.180, 0.220)
-	colSlot      = srgb(0.075, 0.095, 0.130)
-	colSlotPick  = srgb(0.200, 0.300, 0.400)
-	colSlotHover = srgb(0.130, 0.170, 0.230)
+	colPanel     = [3]float32{0.050, 0.060, 0.090}
+	colPanelEdge = [3]float32{0.350, 0.450, 0.580}
+	colBarBack   = [3]float32{0.160, 0.180, 0.220}
+	colSlot      = [3]float32{0.075, 0.095, 0.130}
+	colSlotPick  = [3]float32{0.200, 0.300, 0.400}
+	colSlotHover = [3]float32{0.130, 0.170, 0.230}
 )
 
 // panelOpacity lets a little of the map through the interface, which keeps it

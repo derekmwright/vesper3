@@ -160,4 +160,4 @@ func (g *Game) drawModalButton(h *hud, r rect, fill [3]float32, label string) {
 	h.centred(r.X+r.W/2, r.Y+(r.H-textMain*lineBox)/2, textMain, colInk, "%s", label)
 }
 
-var colModalVeil = srgb(0.02, 0.025, 0.04)
+var colModalVeil = [3]float32{0.02, 0.025, 0.04}

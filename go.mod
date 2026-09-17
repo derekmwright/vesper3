@@ -3,7 +3,7 @@ module github.com/derekmwright/worldbuild
 go 1.26.2
 
 require (
-	github.com/derekmwright/glyphengine v0.0.0-20260916225623-cf7c195bbabd
+	github.com/derekmwright/glyphengine v0.0.0-20260917231249-02807669f9c9
 	github.com/go-gl/mathgl v1.2.0
 	golang.org/x/image v0.44.0
 )

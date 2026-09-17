@@ -148,5 +148,5 @@ func (h *hud) logoQuad(x, y, size float32) {
 }
 
 // colSplashBack is the card's ground, written in display space like the rest
-// of the palette. See srgb.
-var colSplashBack = srgb(0.030, 0.035, 0.050)
+// of the palette; see the note above the palette in hud.go.
+var colSplashBack = [3]float32{0.030, 0.035, 0.050}
