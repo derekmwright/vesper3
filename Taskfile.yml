@@ -1,0 +1,184 @@
+version: '3'
+
+# Vesper III — build, check, capture and package.
+#
+#   task            what to run, listed
+#   task run        play it
+#   task check      everything CI would run
+#   task dist       release binaries
+#
+# Every recipe here was a command written out by hand first. They are collected
+# rather than invented: if a target looks over-specified, it is because the
+# flags in it are the ones that make a result reproducible — a screenshot taken
+# without -camdist and -timeofday is not a capture anyone can re-take.
+
+vars:
+  BIN: vesper
+  # Windows needs the suffix; everything else does not.
+  EXE: '{{if eq OS "windows"}}.exe{{end}}'
+  DIST: dist
+
+  # Stamped into the binary so a bug report can say which build it came from.
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+  LDFLAGS: -s -w -X main.version={{.VERSION}}
+
+tasks:
+  default:
+    desc: List what there is to run
+    silent: true
+    cmds: [task --list]
+
+  # ---------------------------------------------------------------- building
+
+  build:
+    desc: Build the game
+    sources:
+      - '**/*.go'
+      - assets/**/*
+      - go.mod
+      - go.sum
+    generates: ['{{.BIN}}{{.EXE}}']
+    cmds:
+      - go build -ldflags "{{.LDFLAGS}}" -o {{.BIN}}{{.EXE}} .
+
+  run:
+    desc: Play it. Pass flags after -- (task run -- -seed 12345)
+    cmds:
+      - go run . {{.CLI_ARGS}}
+
+  # ---------------------------------------------------------------- checking
+
+  check:
+    desc: Everything CI runs — formatting, vet, tests, and the art contract
+    cmds:
+      - task: fmt-check
+      - task: vet
+      - task: test
+      - task: models:check
+
+  fmt:
+    desc: Format every Go file
+    cmds:
+      - gofmt -w .
+
+  fmt-check:
+    desc: Fail if anything is unformatted
+    cmds:
+      # gofmt -l exits 0 whatever it finds, so the output is the test.
+      - |
+        unformatted=$(gofmt -l .)
+        if [ -n "$unformatted" ]; then
+          echo "not gofmt'd:" >&2
+          echo "$unformatted" >&2
+          exit 1
+        fi
+
+  vet:
+    cmds: [go vet ./...]
+
+  test:
+    desc: Run the test suite
+    cmds:
+      - go test ./... {{.CLI_ARGS}}
+
+  test:race:
+    desc: Run the tests under the race detector
+    cmds:
+      - go test -race ./...
+
+  cover:
+    desc: Test coverage, as a browsable report
+    cmds:
+      - go test -coverprofile={{.DIST}}/coverage.out ./...
+      - go tool cover -html={{.DIST}}/coverage.out -o {{.DIST}}/coverage.html
+      - echo "{{.DIST}}/coverage.html"
+    deps: [dist-dir]
+
+  # ------------------------------------------------------------------- media
+
+  shot:
+    desc: Take a reproducible screenshot (task shot -- -seed 7 -demo)
+    vars:
+      OUT: '{{.OUT | default "shot.png"}}'
+    cmds:
+      # The camera, cursor and clock are pinned on purpose. A capture that
+      # depends on where the mouse happened to be, or on what time of day the
+      # run reached, is not evidence anyone can reproduce.
+      - >-
+        go run . -frames 140 -nosplash -screenshot {{.OUT}}
+        -camdist 9 -campitch 0.45 -camyaw 0.9
+        -cursorx 0.45 -cursory 0.6
+        -timeofday 0.35 -daylen -1
+        {{.CLI_ARGS}}
+      - echo "wrote {{.OUT}}"
+
+  icons:
+    desc: Repack assets/icons-src into the HUD atlas
+    sources: ['assets/icons-src/*.png']
+    generates: ['assets/icons.png']
+    cmds:
+      - go run ./cmd/iconatlas -src assets/icons-src -out assets/icons.png
+
+  models:
+    desc: Rebuild the structure models with Blender, then verify them
+    cmds:
+      - tools/models/build.sh
+      - task: models:check
+
+  models:check:
+    desc: Check the models still carry what the game reads from them
+    cmds:
+      # The battery's charge strips, the condenser's fin band and the
+      # greenhouse's grow lamps are found by matching a base colour. A model
+      # exported without them loads perfectly and simply never lights up, so
+      # this is the only thing standing between a re-export and a feature
+      # quietly disappearing.
+      - go run ./cmd/modelcheck assets/models/*.glb
+
+  # ------------------------------------------------------------- distributing
+
+  dist-dir:
+    internal: true
+    cmds: ['mkdir -p {{.DIST}}']
+    status: ['test -d {{.DIST}}']
+
+  dist:
+    desc: Build a release binary for this machine
+    deps: [dist-dir]
+    cmds:
+      - task: check
+      - go build -trimpath -ldflags "{{.LDFLAGS}}" -o {{.DIST}}/{{.BIN}}{{.EXE}} .
+      - cp LICENSE {{.DIST}}/ 2>/dev/null || true
+      - cp assets/fonts/OFL.txt {{.DIST}}/LICENSE-Exo2.txt
+      - cmd: |
+          echo
+          echo "{{.DIST}}/{{.BIN}}{{.EXE}}  {{.VERSION}}"
+          ls -la {{.DIST}}/{{.BIN}}{{.EXE}} | awk '{printf "  %.1f MB\n", $5/1048576}'
+          echo "  one file: every asset is embedded. Needs a Vulkan 1.1 driver."
+
+  dist:cross:
+    desc: Cross-compile release binaries (needs zig; see the README)
+    deps: [dist-dir]
+    cmds:
+      # GLFW is cgo, so a cross build needs a cross C toolchain. zig cc is the
+      # one that works without installing a per-target gcc, which is why it is
+      # named here rather than left as an exercise.
+      - task: cross
+        vars: {GOOS: linux, GOARCH: amd64, CC: 'zig cc -target x86_64-linux-gnu', SUFFIX: ''}
+      - task: cross
+        vars: {GOOS: windows, GOARCH: amd64, CC: 'zig cc -target x86_64-windows-gnu', SUFFIX: '.exe'}
+      - ls -la {{.DIST}}
+
+  cross:
+    internal: true
+    cmds:
+      - >-
+        CGO_ENABLED=1 GOOS={{.GOOS}} GOARCH={{.GOARCH}} CC="{{.CC}}"
+        go build -trimpath -ldflags "{{.LDFLAGS}}"
+        -o {{.DIST}}/{{.BIN}}-{{.GOOS}}-{{.GOARCH}}{{.SUFFIX}} .
+
+  clean:
+    desc: Remove build output
+    cmds:
+      - rm -rf {{.DIST}} {{.BIN}}{{.EXE}} shot.png

@@ -1,0 +1,21 @@
+# Large binary art goes to LFS. Everything here is a file git would otherwise
+# store a fresh copy of on every edit, and these get edited: a model re-export
+# rewrites all seven megabytes of it.
+#
+# The rule for what belongs here is size and opacity together. A .glb is both —
+# megabytes, and a diff nobody can read. The panel bezel and the logo are
+# neither, so they stay in git where a `git show` still works on them.
+*.glb filter=lfs diff=lfs merge=lfs -text
+assets/icons-src/*.png filter=lfs diff=lfs merge=lfs -text
+
+# Normalise line endings. build.sh is run by bash and has to keep LF whatever
+# a Windows checkout would otherwise do to it.
+* text=auto eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+
+# Binary, so git never tries to normalise or diff them as text.
+*.png binary
+*.ttf binary
+*.glb binary

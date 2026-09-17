@@ -1,0 +1,26 @@
+# Build output.
+/dist/
+/vesper
+/vesper.exe
+*.exe
+*.test
+
+# Captures. A screenshot taken to check something is evidence for one
+# afternoon, not an asset.
+/shot.png
+/*.png
+
+# Saves.
+*.save.json
+
+# Model backups.
+#
+# These were the only safety net before this repository existed: a directory
+# copied aside by hand before each risky re-export. Git is that net now, and
+# keeping them tracked as well would mean carrying several copies of every
+# model through LFS forever.
+#
+# They are ignored rather than deleted. If you are reading this in a fresh
+# clone and there are none, that is correct — the history has them.
+assets/models/_backup-*/
+assets/models/backup-*/
