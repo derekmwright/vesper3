@@ -18,6 +18,10 @@ vars:
   EXE: '{{if eq OS "windows"}}.exe{{end}}'
   DIST: dist
 
+  # Longest texture edge in a shipped model. The authored maps are 2048 and
+  # stay that way in assets/models-src; this is only what gets baked.
+  TEXSIZE: 512
+
   # Stamped into the binary so a bug report can say which build it came from.
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo dev
@@ -121,19 +125,36 @@ tasks:
       - go run ./cmd/iconatlas -src assets/icons-src -out assets/icons.png
 
   models:
-    desc: Rebuild the structure models with Blender, then verify them
+    desc: Re-author the models with Blender, then bake and verify them
     cmds:
+      # build.sh writes to assets/models-src and refuses to promote an export
+      # that does not pass models:check. The bake below is what the game
+      # actually embeds.
       - tools/models/build.sh
+      - task: models:bake
+
+  models:bake:
+    desc: Bake assets/models-src down to the textures the game ships
+    sources: ['assets/models-src/*.glb']
+    generates: ['assets/models/*.glb']
+    cmds:
+      # The models are authored with 2048x2048 maps, which is the right thing
+      # to keep and the wrong thing to ship: a structure covers about a hundred
+      # pixels at this camera distance, and eight pairs of 2048 maps took the
+      # binary to seventy-two megabytes. At 512 the difference is invisible at
+      # three times magnification and the game is a third of the size.
+      - go run ./cmd/texscale -src assets/models-src -out assets/models -size {{.TEXSIZE}}
       - task: models:check
 
   models:check:
     desc: Check the models still carry what the game reads from them
     cmds:
-      # The battery's charge strips, the condenser's fin band and the
-      # greenhouse's grow lamps are found by matching a base colour. A model
-      # exported without them loads perfectly and simply never lights up, so
-      # this is the only thing standing between a re-export and a feature
+      # The battery's charge strips and status lamp, the condenser's fin band
+      # and the greenhouse's grow lamps are found by matching a base colour. A
+      # model exported without them loads perfectly and simply never lights up,
+      # so this is the only thing standing between a re-export and a feature
       # quietly disappearing.
+      - go run ./cmd/modelcheck assets/models-src/*.glb
       - go run ./cmd/modelcheck assets/models/*.glb
 
   # ------------------------------------------------------------- distributing
@@ -144,18 +165,47 @@ tasks:
     status: ['test -d {{.DIST}}']
 
   dist:
-    desc: Build a release binary for this machine
+    desc: Build something you can hand to someone
     deps: [dist-dir]
     cmds:
       - task: check
       - go build -trimpath -ldflags "{{.LDFLAGS}}" -o {{.DIST}}/{{.BIN}}{{.EXE}} .
-      - cp LICENSE {{.DIST}}/ 2>/dev/null || true
+
+      # What goes beside it, and nothing else. A player should be able to
+      # double-click one file; the other two are there because someone will
+      # want to know what the controls are and because the font's licence
+      # requires travelling with it.
+      - cp PLAYING.md {{.DIST}}/README.md
       - cp assets/fonts/OFL.txt {{.DIST}}/LICENSE-Exo2.txt
+      # The project's own licence, when there is one. task's built-in cp is
+      # not a shell and fails outright on a missing source, so the existence
+      # check has to happen before it is called rather than after.
+      - cmd: |
+          if [ -f LICENSE ]; then
+            cp LICENSE {{.DIST}}/
+          else
+            echo "note: no LICENSE in the repository root; none shipped" >&2
+          fi
+      # Reported with du rather than by parsing ls: task runs recipes through
+      # its own shell, whose ls is not GNU ls and does not print the columns an
+      # awk written against GNU ls would be counting.
       - cmd: |
           echo
-          echo "{{.DIST}}/{{.BIN}}{{.EXE}}  {{.VERSION}}"
-          ls -la {{.DIST}}/{{.BIN}}{{.EXE}} | awk '{printf "  %.1f MB\n", $5/1048576}'
-          echo "  one file: every asset is embedded. Needs a Vulkan 1.1 driver."
+          echo "{{.DIST}}/  {{.VERSION}}"
+          du -h {{.DIST}}/* | sed 's|^|  |'
+          echo
+          echo "  One executable. Every asset is embedded - nothing to install,"
+          echo "  nothing to unpack. Needs a Vulkan 1.1 driver."
+
+  dist:zip:
+    desc: Package the dist folder for sending
+    deps: [dist]
+    cmds:
+      - cmd: |
+          name="{{.BIN}}-{{.VERSION}}-{{OS}}-{{ARCH}}"
+          rm -f "$name.zip"
+          (cd {{.DIST}} && zip -qr "../$name.zip" .)
+          ls -la "$name.zip" | awk '{printf "%s  %.1f MB\n", $9, $5/1048576}'
 
   dist:cross:
     desc: Cross-compile release binaries (needs zig; see the README)

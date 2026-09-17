@@ -19,7 +19,7 @@ set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
-out="$root/assets/models"
+out="$root/assets/models-src"
 
 # Blender is not on PATH in a default Windows install, so look where it lands.
 if [ -z "${BLENDER:-}" ]; then
@@ -65,25 +65,49 @@ for script in "${scripts[@]}"; do
   esac
 
   target="$out/$n-$name.glb"
+  staged="$out/.staging-$n-$name.glb"
   echo "== $name -> $(basename "$target")"
+
+  # Built to one side, and promoted only once it has been checked.
+  #
+  # Several structures are animated by *material*: the game finds the battery's
+  # charge strips and status lamp, the condenser fin band and the greenhouse
+  # grow lights by matching the base colour their primitive arrived with. A
+  # model exported without them loads perfectly and simply never lights up.
+  # Writing straight to $target therefore means one bad export silently
+  # deletes a feature, and takes the last good copy with it.
+  #
+  # This is not hypothetical. It happened, and it cost every textured model
+  # in the project until they were recovered out of a stale binary.
+  rm -f "$staged"
 
   # Blender exits 0 even when a --python script raises, so the export is
   # verified by checking the file rather than by trusting the status.
-  before=""
-  [ -f "$target" ] && before="$(md5sum "$target" | cut -d' ' -f1)"
-
-  "$BLENDER" --background --python "$script" -- "$target" 2>&1 \
+  "$BLENDER" --background --python "$script" -- "$staged" 2>&1 \
     | grep -Ev "^(Blender|Read prefs|ℹ️|INFO:|\s*$)" \
     | sed 's/^/   /' || true
 
-  if [ ! -f "$target" ]; then
-    echo "   FAILED: $target was not written" >&2
+  if [ ! -f "$staged" ]; then
+    echo "   FAILED: nothing was exported" >&2
     exit 1
   fi
-  after="$(md5sum "$target" | cut -d' ' -f1)"
-  if [ -n "$before" ] && [ "$before" = "$after" ]; then
-    echo "   warning: output unchanged; the script may have failed before export" >&2
+
+  # modelcheck works out which structure a file is for from its name, so the
+  # staged copy is checked under its real name in a scratch directory rather
+  # than under the staging name.
+  probe="$(mktemp -d)"
+  cp "$staged" "$probe/$n-$name.glb"
+  if ! (cd "$root" && go run ./cmd/modelcheck "$probe/$n-$name.glb"); then
+    rm -rf "$probe"
+    echo >&2
+    echo "   REFUSED: the new $name is missing something the game reads from it." >&2
+    echo "   $(basename "$target") is untouched. The rejected export is at:" >&2
+    echo "     $staged" >&2
+    exit 1
   fi
+  rm -rf "$probe"
+
+  mv -f "$staged" "$target"
 done
 
 echo

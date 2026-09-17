@@ -13,6 +13,10 @@
 # Saves.
 *.save.json
 
+# A model export that failed its check. build.sh leaves it there on purpose so
+# it can be looked at, rather than deleting the evidence of what went wrong.
+assets/models-src/.staging-*.glb
+
 # Model backups.
 #
 # These were the only safety net before this repository existed: a directory
@@ -21,6 +25,7 @@
 # model through LFS forever.
 #
 # They are ignored rather than deleted. If you are reading this in a fresh
-# clone and there are none, that is correct — the history has them.
+# clone and there are none, that is correct - the history has them.
+assets/models-src/_backup-*/
+assets/models-src/backup-*/
 assets/models/_backup-*/
-assets/models/backup-*/
