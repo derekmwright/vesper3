@@ -132,6 +132,10 @@ type hud struct {
 	logoVerts []renderer.Vertex
 	logoIdx   []uint16
 
+	// Button artwork, one nine-slice per state. Each is its own texture and so
+	// its own draw, which is why they accumulate separately; see button.go.
+	buttons [buttonStateCount]*buttonLayer
+
 	// The panel bezel is a nine-slice, drawn in the UI pipeline's panel mode
 	// rather than its texture mode: that mode reads the texture's alpha to
 	// tell frame from fill, giving the translucent interior for free.

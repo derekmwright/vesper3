@@ -1,0 +1,15 @@
+{
+  "checks": [
+    "RGBA dimensions",
+    "identical alpha silhouettes",
+    "transparent exterior",
+    "opaque center",
+    "visually inspected nine-slice preview"
+  ],
+  "sha256": {
+    "button-disabled.png": "57eade192a7953c9f872c363149b5e954ee4298e67c9d75ebb46720dc8d86237",
+    "button-hover.png": "277818b83a80d049b61c08343cdf348bbf5971bb774a7c3eb7ab1a0fbc077d6f",
+    "button-normal.png": "801498d483d4c1e43c4d7ebbfbd4f9c013a7816727e254cbc3fd655be78e3203",
+    "button-pressed.png": "efb20539872d29a05d4eb8f97828cf669d1979ea5addace8e20036453facadf9"
+  }
+}

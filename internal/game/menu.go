@@ -78,24 +78,32 @@ type menu struct {
 	// and both draw the same highlight — so the two never disagree about what
 	// Enter would take.
 	hot int
+
+	// held is the row the pointer went down on, or -1. A button shows its
+	// pressed artwork only while the press that started on it is still on it,
+	// so dragging off cancels — which is also when the release does nothing.
+	held int
 }
 
 // Menu geometry, in design units.
 const (
-	menuW       = 340
-	menuPad     = 22
-	menuRowH    = 46
-	menuRowGap  = 8
-	menuTitleH  = 34
-	menuNoteDY  = 24
-	menuMinScal = 1
+	menuW      = 340
+	menuPad    = 22
+	menuRowGap = 8
+	menuTitleH = 34
+	menuNoteDY = 26
+
+	// A row is a button, so it inherits the artwork's minimum: below twice the
+	// 24-unit nine-slice inset the corner regions overlap and the metal folds
+	// in on itself. buttonMinH is the documented floor; this clears it.
+	menuRowH = 58
 )
 
 // newMenu returns a menu with the first enabled item highlighted, because
 // opening on a choice that cannot be taken invites a keypress that does
 // nothing.
 func newMenu(title, subtitle string, items []menuItem) *menu {
-	m := &menu{Title: title, Subtitle: subtitle, Items: items}
+	m := &menu{Title: title, Subtitle: subtitle, Items: items, held: -1}
 	m.hot = m.firstEnabled()
 	return m
 }
@@ -164,11 +172,24 @@ func (m *menu) update(in *input.Input, px, py, dw, dh float32) menuAction {
 	if in.KeyPressed(input.KeyEnter) || in.KeyPressed(input.KeySpace) {
 		return m.take(m.hot)
 	}
+
+	// Press, then release on the same row. Acting on the press would be
+	// simpler and would mean a menu that cannot be backed out of once the
+	// button is down — the asset README asks for the opposite, and so does
+	// every other button anyone has used.
 	if in.MousePressed(input.MouseButtonLeft) {
+		m.held = -1
 		for i := range m.Items {
-			if m.rowRect(dw, dh, i).contains(px, py) {
-				return m.take(i)
+			if m.rowRect(dw, dh, i).contains(px, py) && m.Items[i].Enabled {
+				m.held = i
 			}
+		}
+	}
+	if in.MouseReleased(input.MouseButtonLeft) {
+		held := m.held
+		m.held = -1
+		if held >= 0 && m.rowRect(dw, dh, held).contains(px, py) {
+			return m.take(held)
 		}
 	}
 	return actionNone
@@ -200,20 +221,20 @@ func (m *menu) draw(h *hud, dw, dh float32) {
 	for i, it := range m.Items {
 		r := m.rowRect(dw, dh, i)
 
-		fill, label, note := colSlot, colInk, colDim
-		switch {
-		case !it.Enabled:
-			fill, label, note = colSlot, colDim, colDim
-		case i == m.hot:
-			fill, label = colSlotPick, colAccent
+		state := buttonStateFor(it.Enabled, i == m.hot, m.held == i)
+		h.button(state, r.X, r.Y, r.W, r.H)
+
+		// The pressed art reverses its bevel, so its label drops with it. The
+		// hit box does not move: rowRect is the same either way.
+		drop := float32(0)
+		if state == buttonPressed {
+			drop = buttonLabelDrop
 		}
 
-		h.quad(r.X, r.Y, r.W, r.H, fill)
-		h.quad(r.X, r.Y, r.W, 2, colPanelEdge)
-
-		h.centred(r.X+r.W/2, r.Y+9, textMain, label, "%s", it.Label)
+		col := buttonLabelColor[state]
+		h.centred(r.X+r.W/2, r.Y+13+drop, textMain, col, "%s", it.Label)
 		if it.Note != "" {
-			h.centred(r.X+r.W/2, r.Y+menuNoteDY+2, textSub, note, "%s", it.Note)
+			h.centred(r.X+r.W/2, r.Y+menuNoteDY+9+drop, textSub, col, "%s", it.Note)
 		}
 	}
 }

@@ -1,0 +1,65 @@
+{
+  "size": [
+    256,
+    96
+  ],
+  "insets": {
+    "left": 24,
+    "top": 24,
+    "right": 24,
+    "bottom": 24
+  },
+  "recommended_minimum_size": [
+    72,
+    56
+  ],
+  "alpha": "straight",
+  "color_space": "sRGB",
+  "render_mode": "textured UI; preserve authored center and colors",
+  "tint": [
+    1,
+    1,
+    1
+  ],
+  "states": {
+    "normal": {
+      "file": "button-normal.png",
+      "label_color": "#d6e5ed",
+      "label_offset": [
+        0,
+        0
+      ]
+    },
+    "hover": {
+      "file": "button-hover.png",
+      "label_color": "#f1fbff",
+      "label_offset": [
+        0,
+        0
+      ]
+    },
+    "pressed": {
+      "file": "button-pressed.png",
+      "label_color": "#ccdee8",
+      "label_offset": [
+        0,
+        2
+      ]
+    },
+    "disabled": {
+      "file": "button-disabled.png",
+      "label_color": "#71838f",
+      "label_offset": [
+        0,
+        0
+      ]
+    }
+  },
+  "state_priority": [
+    "disabled",
+    "pressed",
+    "hover",
+    "normal"
+  ],
+  "notes": "active means hovered, not a persistent toggle selection. All four assets share dimensions and silhouette."
+}

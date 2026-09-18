@@ -93,6 +93,21 @@ func TestMenuRowsTileThePanelWithoutOverlapping(t *testing.T) {
 			t.Errorf("row %d spans %.1f-%.1f, outside the panel %.1f-%.1f",
 				i, r.Y, r.Y+r.H, panelTop, panelBottom)
 		}
+
+		// And clear of the bezel, horizontally. The panel's corner artwork
+		// occupies frameInset texels at frameTexelScale, so a row that started
+		// inside that would have its own clipped corners drawn over the
+		// panel's.
+		bezel := float32(frameInset) * frameTexelScale
+		panelLeft := float32(dw-menuW) / 2
+		if r.X < panelLeft+bezel {
+			t.Errorf("row %d starts at %.1f, inside the %.1f-unit bezel at %.1f",
+				i, r.X, bezel, panelLeft)
+		}
+		if r.X+r.W > panelLeft+menuW-bezel {
+			t.Errorf("row %d ends at %.1f, inside the bezel on the right",
+				i, r.X+r.W)
+		}
 		if i > 0 && r.Y < prev.Y+prev.H {
 			t.Errorf("row %d starts at %.1f, inside row %d which ends at %.1f",
 				i, r.Y, i-1, prev.Y+prev.H)

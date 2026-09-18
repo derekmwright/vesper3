@@ -29,6 +29,11 @@ func (g *Game) drawHUD(e *glyph.Engine) {
 	h.verts, h.idx, h.lines = h.verts[:0], h.idx[:0], h.lines[:0]
 	h.iconVerts, h.iconIdx = h.iconVerts[:0], h.iconIdx[:0]
 	h.frameVerts, h.frameIdx = h.frameVerts[:0], h.frameIdx[:0]
+	for _, layer := range h.buttons {
+		if layer != nil {
+			layer.verts, layer.idx = layer.verts[:0], layer.idx[:0]
+		}
+	}
 
 	w, ph := e.Renderer().Extent()
 	sw, sh := float32(w), float32(ph)
@@ -110,6 +115,29 @@ func (g *Game) drawHUD(e *glyph.Engine) {
 				Texture: h.icons,
 			},
 			Opacity:     alpha,
+			TextureMode: true,
+		})
+	}
+
+	// One draw per button state actually used this frame. Four textures cannot
+	// share a draw, but a menu only ever shows two or three states at once and
+	// an unused state submits nothing.
+	for _, layer := range h.buttons {
+		if layer == nil || len(layer.idx) == 0 {
+			continue
+		}
+		e.Renderer().UpdateMeshData(layer.mesh, layer.verts, layer.idx)
+		overlays = append(overlays, renderer.UIRenderObject{
+			RenderObject: renderer.RenderObject{
+				Mesh:    layer.mesh,
+				MVP:     proj,
+				Texture: layer.slice.Texture,
+			},
+			Opacity: alpha,
+
+			// Texture mode with a white tint, as the asset README asks: the
+			// artwork carries its own colour and panel mode would repaint the
+			// face it was drawn with.
 			TextureMode: true,
 		})
 	}

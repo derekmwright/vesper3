@@ -205,6 +205,9 @@ func (g *Game) Init(e *glyph.Engine) error {
 	if err := g.initHUD(e); err != nil {
 		return err
 	}
+	if err := g.initButtons(e); err != nil {
+		return err
+	}
 	if err := g.initSplash(e); err != nil {
 		return err
 	}

@@ -954,6 +954,33 @@ image would be cheaper and would look like a photograph of the game instead of
 the game. Leaving to the menu generates a *new* world rather than keeping the
 abandoned one, so the backdrop is never the colony that was just given up on.
 
+### The buttons came with a contract
+
+The menu rows are nine-slice artwork — four states in `assets/ui/buttons`, and
+the set arrived with `buttons.json` and `validation.json` beside it: size,
+inset, minimum drawn size, per-state label colours, the order states resolve
+in, and a sha256 for each PNG.
+
+That is worth more than the pictures. `button_test.go` checks the *code*
+against that manifest rather than against numbers copied out of it — the
+constants in `button.go`, the state priority, which file each state loads, that
+all four share a silhouette so a state change recolours a button instead of
+moving it, and that the art still hashes to what was recorded. Art and code
+cannot drift apart quietly, which is the same problem `internal/artcheck`
+solves for the structure models and the same problem the terrain atlas's gutter
+test solves.
+
+One number in it is load-bearing: the inset is 24 on all four sides of a
+96-tall source, so a button drawn shorter than 48 units has its top and bottom
+corner regions overlapping and the metal folds in on itself. The documented
+minimum is 56. The menu's rows were 46 when they were plain rectangles, and a
+test now fails if any button in the game drops below the floor.
+
+The README that shipped with the art also asked for texture mode with a white
+tint rather than panel mode, "to retain the artwork rather than a panel shader
+that replaces the center fill" — which is the same fight documented over the
+bezel in `hud.go`, arrived at independently by someone drawing the art.
+
 The resource panel is hidden on the main menu and kept on the pause menu. On
 the main menu it would be furniture from a game nobody is playing — 0 of 0
 colonists, an advisory telling nobody to build a habitat. On the pause menu the
