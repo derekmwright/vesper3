@@ -503,6 +503,34 @@ wants food; food wants a greenhouse; the greenhouse wants staff.
 Solar arrays and battery banks employ nobody, deliberately. A panel that needs
 someone standing next to it is not a solar panel.
 
+### Losing
+
+Lose the last colonist and the colony is over. Nothing is staffed, so nothing
+is produced, so nobody stays — and coolant is drawn before life support, so a
+geothermal plant takes every drop the extractors manage and the tank never
+refills. Tearing a collapsed colony back to a single habitat does not break the
+cycle; it stays dead.
+
+The game says so in one line and then leaves you alone:
+
+```
+COLONY LOST - no one left
+nothing can be staffed; Esc to load or start again
+```
+
+No overlay and no dimmed screen, because the wreck is worth reading. The camera
+still moves, the panel still shows which of the six rows hit zero first, and
+working out which decision did it is the point. The difficulty curve here is
+meant to be found rather than announced — the game will not warn you that the
+synthesizer you are about to build is three jobs and twelve power a colony at
+94% staffing cannot carry. It will let you build it, and then it will let you
+work out why that was the end.
+
+That bargain only holds because the panel was telling you the whole time. Every
+figure needed to see it coming is on screen before the decision: jobs against
+colonists, water made against water used, and a bar that is amber when a store
+is full rather than green.
+
 ### And they leave if you stop looking after them
 
 Thirst used to do nothing. A colony could run its tank dry and lose nobody,

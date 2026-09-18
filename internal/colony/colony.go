@@ -96,6 +96,18 @@ type Colony struct {
 	Food      float64
 	Colonists float64
 
+	// Settled records that somebody once lived here.
+	//
+	// It exists because zero colonists means two opposite things. A colony on
+	// its first tick has nobody in it yet and is about to be fine; a colony
+	// that has lost its last colonist is over. Nothing else in the ledger
+	// tells those apart - both have no people - so the difference has to be
+	// remembered rather than derived.
+	//
+	// It saves with the rest, and an old save that never had the field loads
+	// as false and sets itself true on the first tick with anyone alive.
+	Settled bool
+
 	// Vespite is the only stock with nothing to spend it on but upgrades. It
 	// is deliberately not a build material: a resource that did both would be
 	// spent on whichever was cheaper that minute, and the point of it is to
@@ -815,6 +827,9 @@ func (c *Colony) Tick(dt, daylight float64) {
 		c.Colonists = max(c.Colonists-GrowthRate*dt, r.Housing)
 	}
 	c.Colonists = max(c.Colonists, 0)
+	if c.Colonists >= 1 {
+		c.Settled = true
+	}
 
 	// Stores are clamped at zero: floating point subtraction of a clamped
 	// draw can still land a hair below it.

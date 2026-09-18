@@ -1,6 +1,7 @@
 package colony
 
 import (
+	"encoding/json"
 	"math"
 	"strings"
 	"testing"
@@ -387,4 +388,86 @@ func powerAdvice(t *testing.T, alerts []Alert) string {
 	}
 	t.Fatalf("no power alert in %+v", alerts)
 	return ""
+}
+
+// A colony on its first tick has nobody in it and is about to be fine. That
+// is the same zero the lose condition is read off, which is the whole reason
+// Settled exists - and the reason this test is the one that matters most of
+// the three below it.
+func TestAFreshColonyIsNotAFailedOne(t *testing.T) {
+	m := flatMap(t, world.Regolith)
+	c := New()
+	if err := c.Found(m, Habitat, world.FromOffset(5, 5)); err != nil {
+		t.Fatal(err)
+	}
+
+	if c.Colonists != 0 {
+		t.Fatalf("this test needs a colony with nobody in it, got %.2f", c.Colonists)
+	}
+	c.Tick(0.1, 1)
+
+	for _, a := range c.Alerts() {
+		if contains(a.Text, "LOST") {
+			t.Fatalf("a colony that has not started yet reports %q", a.Text)
+		}
+	}
+}
+
+// And once people have lived there, losing the last of them is the end.
+func TestLosingTheLastColonistEndsTheGame(t *testing.T) {
+	m := flatMap(t, world.Regolith)
+	c := New()
+	if err := c.Found(m, Habitat, world.FromOffset(5, 5)); err != nil {
+		t.Fatal(err)
+	}
+
+	// Somebody lived here.
+	c.Colonists = 4
+	c.Tick(0.1, 1)
+	if !c.Settled {
+		t.Fatal("four colonists did not count as settled")
+	}
+
+	// And then did not. Empty stores, so nobody can be fed or watered back.
+	c.Colonists, c.Food, c.Water = 0, 0, 0
+	c.Tick(0.1, 1)
+
+	alerts := c.Alerts()
+	if len(alerts) != 1 {
+		t.Fatalf("a lost colony reported %d alerts, want only the one", len(alerts))
+	}
+	if alerts[0].Level != LevelCritical {
+		t.Errorf("the lose alert is level %v, want critical", alerts[0].Level)
+	}
+	if !contains(alerts[0].Text, "LOST") {
+		t.Errorf("the lose alert reads %q", alerts[0].Text)
+	}
+	if alerts[0].Fix == "" {
+		t.Error("the lose alert offers nothing to do about it")
+	}
+}
+
+// Settled has to survive a reload, or loading a dead colony would report it as
+// one that had never started and quietly drop the lose condition.
+func TestSettledSurvivesTheLedger(t *testing.T) {
+	c := New()
+	c.Colonists = 4
+
+	m := flatMapOf(t, world.Regolith, 12)
+	if err := c.Found(m, Habitat, world.FromOffset(5, 5)); err != nil {
+		t.Fatal(err)
+	}
+	c.Tick(0.1, 1)
+
+	blob, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back Colony
+	if err := json.Unmarshal(blob, &back); err != nil {
+		t.Fatal(err)
+	}
+	if !back.Settled {
+		t.Error("a settled colony reloaded as one that had never been lived in")
+	}
 }

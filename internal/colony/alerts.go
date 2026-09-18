@@ -37,6 +37,24 @@ const (
 // render as such.
 func (c *Colony) Alerts() []Alert {
 	r := c.Readout
+
+	// Losing the last colonist is the end of the game, and it is said on its
+	// own. Everything below would still be true - the grid is short, the
+	// coolant loop is dry, the tank is empty - but they are symptoms of an
+	// empty colony rather than things to go and fix, and a wall of advice
+	// under a headstone reads as a colony that could still be saved.
+	//
+	// It cannot. Nothing is staffed, so nothing is produced, so nobody stays:
+	// see cmd/balance, which tears a collapsed colony back to a single
+	// habitat and watches it stay dead.
+	if c.Settled && c.Colonists < 1 {
+		return []Alert{{
+			Level: LevelCritical,
+			Text:  "COLONY LOST - no one left",
+			Fix:   "nothing can be staffed; Esc to load or start again",
+		}}
+	}
+
 	var out []Alert
 
 	// Power first: it scales everything else, so a shortfall here is the
