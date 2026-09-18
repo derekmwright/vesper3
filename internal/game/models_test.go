@@ -176,3 +176,81 @@ func TestModelsKeepTheirMaterialsSeparate(t *testing.T) {
 		}
 	}
 }
+
+// tierModelFor is modelFor for an upgrade variant, returning "" when that tier
+// has no art of its own — which is the normal case for everything but the mine
+// and is not a failure.
+func tierModelFor(t *testing.T, k colony.Kind, tier uint8) string {
+	t.Helper()
+	for i, b := range colony.Buildable {
+		if b != k {
+			continue
+		}
+		path := filepath.Join("../..", tierModelPath(i, k, tier))
+		if _, err := os.Stat(path); err != nil {
+			return ""
+		}
+		return path
+	}
+	return ""
+}
+
+// A tier model is loaded by the same path the game builds, lit by the same
+// lamp matcher, and drawn by the same code. So it has to carry the same
+// contract the tier-1 model does: something to light at dusk, and its
+// materials kept apart.
+//
+// This is the check that would have caught the tier art being re-exported with
+// its lamp merged into the body — the failure mode that cost this project its
+// models once already, which is why every art contract here is a test.
+func TestTierModelsKeepTheContractTheirFirstTierHas(t *testing.T) {
+	found := 0
+	for _, k := range colony.Buildable {
+		for tier := uint8(2); tier <= colony.MaxTier; tier++ {
+			path := tierModelFor(t, k, tier)
+			if path == "" {
+				continue
+			}
+			found++
+
+			mats, err := artcheck.Materials(path)
+			if err != nil {
+				t.Errorf("%v tier %d: %v", k, tier, err)
+				continue
+			}
+			if len(mats) < 2 {
+				t.Errorf("%v tier %d has %d material(s): a merged export lights nothing",
+					k, tier, len(mats))
+			}
+
+			parts := make([]meshPart, 0, len(mats))
+			for _, m := range mats {
+				parts = append(parts, meshPart{Name: m.Name, Color: m.BaseColor})
+			}
+			if _, _, ok := findLampPart(parts); !ok {
+				t.Errorf("%v tier %d has nothing that lights at dusk", k, tier)
+			}
+
+			seen := map[string]bool{}
+			for _, m := range mats {
+				if seen[m.Name] {
+					t.Errorf("%v tier %d repeats the material %q", k, tier, m.Name)
+				}
+				seen[m.Name] = true
+			}
+		}
+	}
+	if found == 0 {
+		t.Skip("no tier art on disk yet")
+	}
+}
+
+// The mine is the building tiers were implemented against, so its art is the
+// one case this project can assert is actually present rather than skipping.
+func TestTheMineHasArtForEveryTier(t *testing.T) {
+	for tier := uint8(2); tier <= colony.MaxTier; tier++ {
+		if tierModelFor(t, colony.Mine, tier) == "" {
+			t.Errorf("no mine model for tier %d", tier)
+		}
+	}
+}

@@ -38,6 +38,19 @@ type StructureDemolished struct {
 	Iron, Crystal float64
 }
 
+// StructureUpgraded is published after a building has moved up a tier and been
+// charged for it.
+//
+// Tier is the tier it arrived at rather than the one it left, because every
+// subscriber wants to know what is standing there now — the renderer has to
+// draw it and the interface has to name it.
+type StructureUpgraded struct {
+	Kind colony.Kind
+	At   hex.Axial
+	Tier uint8
+	Cost colony.UpgradeCost
+}
+
 // TileReshaped is one terraforming step that actually happened.
 type TileReshaped struct {
 	At    hex.Axial
@@ -100,6 +113,14 @@ func (g *Game) subscribe(e *glyph.Engine) {
 	event.On(g.bus, func(ev StructureDemolished) {
 		g.scene.despawnBuilding(e, ev.At)
 	})
+	event.On(g.bus, func(ev StructureUpgraded) {
+		// Despawn and respawn rather than re-pointing the meshes: a tier can
+		// have a different number of primitives from the one below it, so
+		// there is no one-to-one mapping to re-point. The colony already
+		// holds the new tier, so spawnBuilding picks up the right geometry.
+		g.scene.despawnBuilding(e, ev.At)
+		g.spawnBuilding(e, ev.Kind, ev.At)
+	})
 	event.On(g.bus, func(ev TileReshaped) {
 		g.refreshAround(e, ev.At)
 	})
@@ -112,6 +133,10 @@ func (g *Game) subscribe(e *glyph.Engine) {
 	event.On(g.bus, func(ev StructureDemolished) {
 		g.setStatus("%s demolished, %s recovered",
 			colony.Of(ev.Kind).Name, colony.Materials(ev.Iron, ev.Crystal))
+	})
+	event.On(g.bus, func(ev StructureUpgraded) {
+		g.setStatus("%s upgraded to tier %d for %.0f vespite and %.0f iron",
+			colony.Of(ev.Kind).Name, ev.Tier, ev.Cost.Vespite, ev.Cost.Iron)
 	})
 	event.On(g.bus, func(ev TileReshaped) {
 		verb := "Raised"

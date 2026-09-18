@@ -122,7 +122,10 @@ tasks:
     sources: ['assets/icons-src/*.png']
     generates: ['assets/icons.png']
     cmds:
-      - go run ./cmd/iconatlas -src assets/icons-src -out assets/icons.png
+      # -rows is declared rather than left to fit the sources: the HUD indexes
+      # this grid by number, so a row appearing or vanishing with the source
+      # count would move every icon below it.
+      - go run ./cmd/iconatlas -src assets/icons-src -out assets/icons.png -cols 4 -rows 5
 
   terrain:
     desc: Repack assets/terrain-src into the hexagon detail atlas
@@ -154,8 +157,8 @@ tasks:
 
   models:bake:
     desc: Bake assets/models-src down to the textures the game ships
-    sources: ['assets/models-src/*.glb']
-    generates: ['assets/models/*.glb']
+    sources: ['assets/models-src/*.glb', 'assets/models-src/tiers/*/*/*.glb']
+    generates: ['assets/models/*.glb', 'assets/models/tiers/*/*/*.glb']
     cmds:
       # The models are authored with 2048x2048 maps, which is the right thing
       # to keep and the wrong thing to ship: a structure covers about a hundred
@@ -163,6 +166,17 @@ tasks:
       # binary to seventy-two megabytes. At 512 the difference is invisible at
       # three times magnification and the game is a third of the size.
       - go run ./cmd/texscale -src assets/models-src -out assets/models -size {{.TEXSIZE}}
+      # Upgrade art bakes the same way, one directory per building per tier.
+      # The loop is over what is on disk rather than a fixed list: tiers land
+      # one building at a time, and a hardcoded list would silently skip the
+      # next one to arrive.
+      - |
+        for d in assets/models-src/tiers/*/tier*/; do
+          [ -d "$d" ] || continue
+          out="assets/models/${d#assets/models-src/}"
+          mkdir -p "$out"
+          go run ./cmd/texscale -src "$d" -out "$out" -size {{.TEXSIZE}}
+        done
       - task: models:check
 
   models:check:
@@ -175,6 +189,14 @@ tasks:
       # quietly disappearing.
       - go run ./cmd/modelcheck assets/models-src/*.glb
       - go run ./cmd/modelcheck assets/models/*.glb
+      # And every tier of every building that has upgrade art. Each tier keeps
+      # the canonical filename of its building, so modelcheck validates it by
+      # exactly the rules it validates the original by.
+      - |
+        for f in assets/models/tiers/*/tier*/*.glb; do
+          [ -f "$f" ] || continue
+          go run ./cmd/modelcheck "$f"
+        done
 
   # ------------------------------------------------------------- distributing
 

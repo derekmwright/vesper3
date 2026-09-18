@@ -244,6 +244,7 @@ func TestSolarStopsAtNightAndGeothermalDoesNot(t *testing.T) {
 	m.At(world.FromOffset(6, 6)).Terrain = world.Vent
 
 	solar := New()
+	anchor(t, solar, m, world.FromOffset(4, 4))
 	if err := solar.Place(m, SolarArray, world.FromOffset(4, 4)); err != nil {
 		t.Fatal(err)
 	}
@@ -258,6 +259,7 @@ func TestSolarStopsAtNightAndGeothermalDoesNot(t *testing.T) {
 
 	geo := New()
 	geo.Iron = 1000
+	anchor(t, geo, m, world.FromOffset(6, 6))
 	if err := geo.Place(m, Geothermal, world.FromOffset(6, 6)); err != nil {
 		t.Fatal(err)
 	}
@@ -280,6 +282,7 @@ func TestBrownoutScalesProductionByTheSupplyRatio(t *testing.T) {
 	c.Iron = 100
 	c.Crystal = 100
 
+	anchor(t, c, m, world.FromOffset(4, 4))
 	if err := c.Place(m, Mine, world.FromOffset(4, 4)); err != nil {
 		t.Fatal(err)
 	}
@@ -302,7 +305,10 @@ func TestBrownoutScalesProductionByTheSupplyRatio(t *testing.T) {
 	start = c.Iron
 	c.Tick(1, 0.25)
 
-	wantSat := (Of(SolarArray).PowerOut * 0.25) / Of(Mine).PowerIn
+	// The anchoring habitat draws from the same grid, so the demand this
+	// supply is rationed against is both of them.
+	demand := Of(Mine).PowerIn + Of(Habitat).PowerIn
+	wantSat := (Of(SolarArray).PowerOut * 0.25) / demand
 	if got := c.Readout.Satisfaction; math.Abs(float64(got-wantSat)) > 1e-4 {
 		t.Errorf("satisfaction %.4f, want %.4f", got, wantSat)
 	}
@@ -347,6 +353,7 @@ func TestWhatAMineProducesIsDecidedByTheGroundUnderIt(t *testing.T) {
 			m := flatMap(t, tc.terrain)
 			c := New()
 			c.Iron, c.Crystal = 10000, 10000
+			anchor(t, c, m, world.FromOffset(4, 4))
 			err := c.Place(m, Mine, world.FromOffset(4, 4))
 			if tc.wantOre == world.OreNone {
 				if !errors.Is(err, ErrTerrain) {
@@ -592,10 +599,39 @@ func greenhouseRun(t *testing.T, terrain world.Terrain) float64 {
 	return c.Food
 }
 
+// anchor founds a habitat beside a tile so that something may be built there.
+//
+// Tests about terrain, cost or production call it to satisfy the reach rule
+// and get on with the rule they are actually about. It founds rather than
+// places so the anchor itself is free and unconstrained — the habitat is
+// scaffolding for the test, not part of what it measures.
+func anchor(t *testing.T, c *Colony, m *world.Map, a hex.Axial) {
+	t.Helper()
+
+	// Three tiles out rather than one: inside BuildRadius with room to spare,
+	// and far enough that the anchor is not sitting on a tile the test wanted
+	// to build its second structure on.
+	var last error
+	for d := range 6 {
+		at := a
+		for range 3 {
+			at = at.Neighbor(d)
+		}
+		if last = c.Found(m, Habitat, at); last == nil {
+			return
+		}
+	}
+	t.Fatalf("no room to anchor a habitat near %v: %v", a, last)
+}
+
+// mustPlace puts a structure in a fixture. It founds rather than places: a
+// fixture is describing a colony that exists, not exercising the rules for
+// building one. Those have their own tests, which call Place and CanPlace
+// directly so that a change to the fixtures cannot quietly weaken them.
 func mustPlace(t *testing.T, c *Colony, m *world.Map, k Kind, a hex.Axial) {
 	t.Helper()
-	if err := c.Place(m, k, a); err != nil {
-		t.Fatalf("Place(%v at %v): %v", k, a, err)
+	if err := c.Found(m, k, a); err != nil {
+		t.Fatalf("Found(%v at %v): %v", k, a, err)
 	}
 }
 
@@ -603,7 +639,13 @@ func mustPlace(t *testing.T, c *Colony, m *world.Map, k Kind, a hex.Axial) {
 // so a test can say what it means without generating a planet.
 func flatMap(t *testing.T, terrain world.Terrain) *world.Map {
 	t.Helper()
-	m, err := world.NewMap(12, 12, 1)
+	return flatMapOf(t, terrain, 12)
+}
+
+// flatMapOf is flatMap with room to spread out, for tests about distance.
+func flatMapOf(t *testing.T, terrain world.Terrain, size int) *world.Map {
+	t.Helper()
+	m, err := world.NewMap(size, size, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -612,4 +654,113 @@ func flatMap(t *testing.T, terrain world.Terrain) *world.Map {
 		tile.Elevation = world.SeaLevel + 2
 	})
 	return m
+}
+
+// walk steps n tiles in one direction, for placing something a known distance
+// away from somewhere else.
+func walk(a hex.Axial, dir, n int) hex.Axial {
+	for range n {
+		a = a.Neighbor(dir)
+	}
+	return a
+}
+
+// The reach rule is what gives the workforce somewhere to be. Without it a
+// mine on the far side of the continent drew on the same staff as one next
+// door, and the map had no say in where a colony went.
+func TestNothingIsBuiltOutOfReachOfAHabitat(t *testing.T) {
+	m := flatMapOf(t, world.Dunes, 24)
+	home := world.FromOffset(5, 5)
+
+	for n := range BuildRadius + 3 {
+		c := New()
+		c.Iron, c.Crystal = 10000, 10000
+		if err := c.Found(m, Habitat, home); err != nil {
+			t.Fatal(err)
+		}
+
+		at := walk(home, 0, n+1)
+		if m.At(at) == nil {
+			t.Fatalf("distance %d walks off the map", n+1)
+		}
+
+		err := c.Place(m, Mine, at)
+		switch {
+		case n+1 <= BuildRadius && err != nil:
+			t.Errorf("mine %d tiles out: %v, want it allowed", n+1, err)
+		case n+1 > BuildRadius && !errors.Is(err, ErrNoHabitat):
+			t.Errorf("mine %d tiles out: %v, want ErrNoHabitat", n+1, err)
+		}
+	}
+}
+
+// Habitats are exempt, and have to be: the rule would otherwise be unsatisfiable
+// for the first one, and a colony could never expand past its landing site.
+func TestAHabitatIsItsOwnPermission(t *testing.T) {
+	m := flatMap(t, world.Regolith)
+	c := New()
+	c.Iron, c.Crystal = 10000, 10000
+
+	// Nothing built at all: the first habitat still goes down.
+	first := world.FromOffset(2, 2)
+	if err := c.Place(m, Habitat, first); err != nil {
+		t.Fatalf("the first habitat: %v", err)
+	}
+
+	// And the next one may be planted beyond the reach of that one, which is
+	// how a colony walks across the map towards ice or a vent.
+	far := walk(first, 0, BuildRadius+2)
+	if err := c.Place(m, Habitat, far); err != nil {
+		t.Fatalf("an outpost %d tiles out: %v", BuildRadius+2, err)
+	}
+
+	// Which then carries its own reach with it.
+	if err := c.Place(m, Condenser, far.Neighbor(1)); err != nil {
+		t.Errorf("beside the new outpost: %v", err)
+	}
+}
+
+// Founding is placement by fiat and skips the reach rule, because the landing
+// site arrives before there is any habitat to be near.
+func TestFoundingIgnoresReachButNotTheGround(t *testing.T) {
+	m := flatMap(t, world.Regolith)
+	c := New()
+
+	if err := c.Found(m, SolarArray, world.FromOffset(4, 4)); err != nil {
+		t.Errorf("founding an array with no habitat: %v", err)
+	}
+	// The ground rules are not skipped with it.
+	if err := c.Found(m, Geothermal, world.FromOffset(6, 6)); !errors.Is(err, ErrTerrain) {
+		t.Errorf("founded a geothermal plant off a vent: %v", err)
+	}
+}
+
+// The rule is about building, not about standing. Demolishing the habitat an
+// outpost was built around leaves what is already there running — it is a
+// siting decision, and unbuilding one thing should not silently unbuild
+// another.
+func TestLosingTheHabitatDoesNotStrandWhatIsBuilt(t *testing.T) {
+	m := flatMap(t, world.Dunes)
+	c := New()
+	c.Iron, c.Crystal = 10000, 10000
+	c.Colonists = 100
+
+	home := world.FromOffset(5, 5)
+	mine := walk(home, 0, BuildRadius)
+	if err := c.Place(m, Habitat, home); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Place(m, Mine, mine); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := c.Demolish(home); !ok {
+		t.Fatal("the habitat would not demolish")
+	}
+
+	if _, ok := c.At(mine); !ok {
+		t.Fatal("the mine went with the habitat")
+	}
+	if err := c.Place(m, Mine, mine.Neighbor(1)); !errors.Is(err, ErrNoHabitat) {
+		t.Errorf("built beside a stranded mine: %v, want ErrNoHabitat", err)
+	}
 }

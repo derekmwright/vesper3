@@ -30,7 +30,7 @@ const (
 var hotkeys = [...]input.Key{
 	input.Key1, input.Key2, input.Key3, input.Key4,
 	input.Key5, input.Key6, input.Key7, input.Key8,
-	input.Key9,
+	input.Key9, input.Key0,
 }
 
 // intent is what the player has told the game they want to do: which tool is
@@ -92,6 +92,9 @@ func (g *Game) handleKeys(e *glyph.Engine) {
 	case in.KeyPressed(input.KeyT):
 		g.intent.mode = ModeTerraform
 		g.toolChanged("Terraform mode: left-click raises, right-click lowers (%d iron)", terraformCost)
+	case in.KeyPressed(input.KeyU):
+		g.intent.mode = ModeUpgrade
+		g.toolChanged("Upgrade mode: left-click raises a structure a tier")
 	}
 
 	// Shift and the wheel turn the structure about to be placed, a sixth of a
@@ -196,6 +199,13 @@ func (g *Game) handleClicks(e *glyph.Engine) {
 			g.askDemolish(g.intent.hover)
 		}
 
+	case ModeUpgrade:
+		// No confirmation, unlike demolition: an upgrade only ever adds, and
+		// the thing it spends is a resource with no other use.
+		if left {
+			g.upgrade(e, g.intent.hover)
+		}
+
 	default: // ModeBuild
 		if left {
 			g.place(e, g.intent.hover)
@@ -270,6 +280,28 @@ func (g *Game) terraform(_ *glyph.Engine, a hex.Axial, delta int) {
 	emit(g, TileReshaped{At: a, Delta: delta, Cost: terraformCost})
 }
 
+// upgrade raises the structure on a tile by one tier.
+//
+// Like place, this does not touch the scene. The colony is the authority, and
+// what is drawn follows from the event — see subscribe in events.go.
+func (g *Game) upgrade(e *glyph.Engine, a hex.Axial) {
+	b, ok := g.Colony.At(a)
+	if !ok {
+		emit(g, ActionRefused{Reason: "nothing to upgrade there"})
+		return
+	}
+	cost, err := g.Colony.CanUpgrade(a)
+	if err != nil {
+		emit(g, ActionRefused{Err: err})
+		return
+	}
+	if err := g.Colony.Upgrade(a); err != nil {
+		emit(g, ActionRefused{Err: err})
+		return
+	}
+	emit(g, StructureUpgraded{Kind: b.Kind, At: a, Tier: b.Tier() + 1, Cost: cost})
+}
+
 // spawnBuilding creates the entity for a placed structure.
 func (g *Game) spawnBuilding(e *glyph.Engine, k colony.Kind, a hex.Axial) {
 	x, z := g.Map.Center(a)
@@ -279,13 +311,16 @@ func (g *Game) spawnBuilding(e *glyph.Engine, k colony.Kind, a hex.Axial) {
 	// structure back the way it was built rather than the way the cursor
 	// happens to be pointing now.
 	yaw := float32(0)
+	tier := uint8(1)
 	if b, ok := g.Colony.At(a); ok {
 		yaw = facingYaw(b.Facing)
+		tier = b.Tier()
 	}
 
-	ents := make([]glyph.Entity, 0, len(g.scene.structParts[k]))
+	parts := g.scene.partsFor(k, tier)
+	ents := make([]glyph.Entity, 0, len(parts))
 
-	for _, part := range g.scene.structParts[k] {
+	for _, part := range parts {
 		scale := part.Scale
 		if scale <= 0 {
 			scale = 1
@@ -396,6 +431,13 @@ func (g *Game) canActHere() bool {
 			return false
 		}
 		return g.Colony.Iron >= terraformCost
+	case ModeUpgrade:
+		// Without this the cursor falls through to the build rule and tints
+		// by whether the *selected* structure could go here — which is red on
+		// every tile that already has a building, meaning red on exactly the
+		// tiles upgrade mode works on.
+		_, err := g.Colony.CanUpgrade(g.intent.hover)
+		return err == nil
 	default:
 		return g.Colony.CanPlace(g.Map, g.intent.selected, g.intent.hover) == nil
 	}

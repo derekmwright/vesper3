@@ -41,10 +41,14 @@ import (
 // binary. That is the intended trade: a missing asset is a loud failure at
 // startup, a silently embedded one is a download nobody notices.
 //
+// Tier art sits two directories down, one per building, and has to be listed
+// separately: an embed pattern matches one path segment at a time.
+//
 //go:embed assets/icons.png assets/panel.png assets/logo.png assets/terrain-detail.png
 //go:embed assets/ui/buttons/*.png
 //go:embed assets/fonts
 //go:embed assets/models/*.glb
+//go:embed assets/models/tiers/*/*/*.glb
 var assetsFS embed.FS
 
 // version is stamped in at build time by the Taskfile:

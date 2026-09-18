@@ -55,6 +55,7 @@ const (
 	ModeBuild Mode = iota
 	ModeDemolish
 	ModeTerraform
+	ModeUpgrade
 )
 
 func (m Mode) String() string {
@@ -63,6 +64,8 @@ func (m Mode) String() string {
 		return "DEMOLISH"
 	case ModeTerraform:
 		return "TERRAFORM"
+	case ModeUpgrade:
+		return "UPGRADE"
 	default:
 		return "BUILD"
 	}

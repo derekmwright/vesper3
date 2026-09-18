@@ -19,6 +19,11 @@ import (
 // moved the mine's product onto the building. A version 1 file would load with
 // every stock at zero and every mine producing nothing, which is exactly the
 // "plausible but wrong numbers" case this guard exists for.
+//
+// Tiers and vespite did *not* bump it, deliberately. Both are additive: a
+// version 2 file has no tier on any building and no vespite in the ledger,
+// which decodes as zero, and zero already means "tier 1" and "none yet". A
+// bump would have made old saves unreadable to buy nothing.
 const saveVersion = 2
 
 // savedGame is the whole game state on disk.

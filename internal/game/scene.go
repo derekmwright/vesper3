@@ -24,10 +24,12 @@ type scene struct {
 	chunkMesh map[meshgen.ChunkID]*renderer.Mesh
 	chunkEnt  map[meshgen.ChunkID]glyph.Entity
 
-	// Structure geometry is built once per kind and shared by every instance.
-	// ghostParts is the same geometry stripped of its materials, for the
-	// placement preview; see ghost.go.
-	structParts map[colony.Kind][]meshPart
+	// Structure geometry is built once per kind and tier and shared by every
+	// instance of it. ghostParts is the same geometry stripped of its
+	// materials, for the placement preview; see ghost.go — and it is keyed by
+	// kind alone, because what the preview shows is always a new building and
+	// a new building is always tier 1.
+	structParts map[partKey][]meshPart
 	ghostParts  map[colony.Kind][]meshPart
 	cursorMesh  *renderer.Mesh
 
@@ -52,10 +54,31 @@ func newScene() scene {
 	return scene{
 		chunkMesh:   make(map[meshgen.ChunkID]*renderer.Mesh),
 		chunkEnt:    make(map[meshgen.ChunkID]glyph.Entity),
-		structParts: make(map[colony.Kind][]meshPart),
+		structParts: make(map[partKey][]meshPart),
 		ghostParts:  make(map[colony.Kind][]meshPart),
 		buildingEnt: make(map[hex.Axial][]glyph.Entity),
 	}
+}
+
+// partKey identifies one visual variant of a structure.
+//
+// Only the mine has tier art so far, and the rest of the catalog is expected
+// to arrive one building at a time. That is what partsFor is for: a lookup
+// that misses falls back to tier 1 rather than drawing nothing, so a tier-3
+// greenhouse is a working tier-3 greenhouse that happens to look like a
+// tier-1 one, and the economy never waits on an artist.
+type partKey struct {
+	Kind colony.Kind
+	Tier uint8
+}
+
+// partsFor returns the geometry to draw a building of this kind and tier with,
+// falling back to its tier-1 look when that tier has no art of its own.
+func (s *scene) partsFor(k colony.Kind, tier uint8) []meshPart {
+	if parts, ok := s.structParts[partKey{k, tier}]; ok {
+		return parts
+	}
+	return s.structParts[partKey{k, 1}]
 }
 
 // despawnBuilding removes every entity standing on a tile and forgets it.

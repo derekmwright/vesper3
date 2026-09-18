@@ -102,6 +102,61 @@ func main() {
 	fmt.Printf("  that is %.1f and %.1f day/night cycles\n",
 		colony.StartingWater/hab.WaterIn/dayLen, colony.StartingFood/hab.FoodIn/dayLen)
 
+	runVespite(dayLen)
+
 	runSims()
 	runWhatIf()
+}
+
+// runVespite is the progression arithmetic: how long a colony works for one
+// upgrade, and what it has to keep mining to do it.
+//
+// Vespite is the only resource with a target rather than a rate to sustain, so
+// the useful figures are all durations: a number of day/night cycles is
+// something a player can feel, where "0.01 per second" is not.
+func runVespite(dayLen float64) {
+	syn := colony.Of(colony.Synthesizer)
+	mine := colony.Of(colony.Mine)
+	crystalRate := mine.MineOut * 0.4
+
+	fmt.Println()
+	fmt.Println("== VESPITE AND TIERS ==")
+	fmt.Printf("  synthesizer %.3f/s from %.2f crystal/s, %.0f power, %.0f staff, holds %.0f\n",
+		syn.VespiteOut, syn.CrystalIn, syn.PowerIn, syn.Jobs, syn.VespiteStore)
+	fmt.Printf("  one crystal mine at %.2f/s feeds %.1f synthesizers\n",
+		crystalRate, crystalRate/syn.CrystalIn)
+	fmt.Printf("  filling one synthesizer from empty: %.0fs (%.1f cycles)\n",
+		syn.VespiteStore/syn.VespiteOut, syn.VespiteStore/syn.VespiteOut/dayLen)
+	fmt.Println()
+
+	fmt.Println("  what one upgrade costs, and how long one synthesizer works for it:")
+	for _, k := range []colony.Kind{colony.Mine, colony.Habitat, colony.Greenhouse, colony.Geothermal} {
+		spec := colony.Of(k)
+		line := ""
+		for tier := uint8(2); tier <= colony.MaxTier; tier++ {
+			cost, ok := colony.CostToReach(k, tier)
+			if !ok {
+				continue
+			}
+			cycles := cost.Vespite / syn.VespiteOut / dayLen
+			line += fmt.Sprintf("   T%d %3.0fv +%3.0fi (%4.1f cycles)", tier, cost.Vespite, cost.Iron, cycles)
+		}
+		fmt.Printf("    %-18s%s\n", spec.Name, line)
+	}
+
+	// What the whole catalog costs to take to the top: the length of the game
+	// if a player decides to finish it rather than merely survive it.
+	var totalV, totalI float64
+	for _, k := range colony.Buildable {
+		for tier := uint8(2); tier <= colony.MaxTier; tier++ {
+			if cost, ok := colony.CostToReach(k, tier); ok {
+				totalV += cost.Vespite
+				totalI += cost.Iron
+			}
+		}
+	}
+	fmt.Println()
+	fmt.Printf("  one of everything at tier 3: %.0f vespite, %.0f iron\n", totalV, totalI)
+	fmt.Printf("  at one synthesizer that is %.0f cycles of synthesis alone\n",
+		totalV/syn.VespiteOut/dayLen)
 }

@@ -1,6 +1,7 @@
 package game
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -20,6 +21,14 @@ func TestSaveRoundTripsMapAndColony(t *testing.T) {
 	dug := world.FromOffset(5, 5)
 	g.Map.At(dug).Elevation = 11
 	g.Map.At(dug).Terrain = world.Crystal
+
+	// A mine needs a habitat within reach, which every real save has and this
+	// fixture did not.
+	home := world.FromOffset(7, 6)
+	g.Map.At(home).Terrain = world.Regolith
+	if err := g.Colony.Found(g.Map, colony.Habitat, home); err != nil {
+		t.Fatal(err)
+	}
 
 	site := world.FromOffset(6, 6)
 	g.Map.At(site).Terrain = world.Dunes
@@ -136,4 +145,114 @@ func savableGame(t *testing.T) *Game {
 	g.Map = m
 	g.Colony = colony.New()
 	return g
+}
+
+// A tiered building and a vespite stock have to come back, and a save written
+// before either existed has to keep loading.
+func TestSaveRoundTripsTiersAndVespite(t *testing.T) {
+	g := savableGame(t)
+
+	home := world.FromOffset(7, 6)
+	g.Map.At(home).Terrain = world.Regolith
+	if err := g.Colony.Found(g.Map, colony.Habitat, home); err != nil {
+		t.Fatal(err)
+	}
+	site := world.FromOffset(6, 6)
+	g.Map.At(site).Terrain = world.Dunes
+	if err := g.Colony.Place(g.Map, colony.Mine, site); err != nil {
+		t.Fatal(err)
+	}
+
+	g.Colony.Iron, g.Colony.Vespite = 100000, 500
+	if err := g.Colony.Upgrade(site); err != nil {
+		t.Fatalf("upgrade: %v", err)
+	}
+	if err := g.Colony.Upgrade(site); err != nil {
+		t.Fatalf("second upgrade: %v", err)
+	}
+	wantVespite := g.Colony.Vespite
+
+	blob, err := g.encode()
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	got, err := decodeSave(blob, g.Map.Cols, g.Map.Rows)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	got.Colony.Reindex()
+
+	b, ok := got.Colony.At(site)
+	if !ok {
+		t.Fatal("the mine did not come back")
+	}
+	if b.Tier() != colony.MaxTier {
+		t.Errorf("mine reloaded at tier %d, want %d", b.Tier(), colony.MaxTier)
+	}
+	if got.Colony.Vespite != wantVespite {
+		t.Errorf("vespite reloaded as %.2f, want %.2f", got.Colony.Vespite, wantVespite)
+	}
+}
+
+// The reason saveVersion did not need bumping: a file from before tiers has
+// no tier field at all, and the building it describes has to load as tier 1
+// rather than as a building that scales by nothing.
+func TestASaveWithoutTiersLoadsAsTierOne(t *testing.T) {
+	g := savableGame(t)
+	home := world.FromOffset(7, 6)
+	g.Map.At(home).Terrain = world.Regolith
+	if err := g.Colony.Found(g.Map, colony.Habitat, home); err != nil {
+		t.Fatal(err)
+	}
+	// Set both fields to something a zero value could not be mistaken for,
+	// so that stripping them has to actually do something. Deleting a key
+	// that was never there would make this test pass without testing
+	// anything, which is exactly how a renamed field would slip through.
+	g.Colony.Iron, g.Colony.Vespite = 100000, 77
+	if err := g.Colony.Upgrade(home); err != nil {
+		t.Fatal(err)
+	}
+
+	blob, err := g.encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Strip the fields a pre-tier build would never have written.
+	var raw map[string]any
+	if err := json.Unmarshal(blob, &raw); err != nil {
+		t.Fatal(err)
+	}
+	col := raw["colony"].(map[string]any)
+	if _, ok := col["Vespite"]; !ok {
+		t.Fatal(`no "Vespite" key in the save: this test is stripping nothing`)
+	}
+	delete(col, "Vespite")
+	for _, b := range col["Buildings"].([]any) {
+		bm := b.(map[string]any)
+		if _, ok := bm["TierLevel"]; !ok {
+			t.Fatal(`no "TierLevel" key in a saved building`)
+		}
+		delete(bm, "TierLevel")
+	}
+	stripped, err := json.Marshal(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := decodeSave(stripped, g.Map.Cols, g.Map.Rows)
+	if err != nil {
+		t.Fatalf("a save without tiers would not load: %v", err)
+	}
+	got.Colony.Reindex()
+	b, ok := got.Colony.At(home)
+	if !ok {
+		t.Fatal("the habitat did not come back")
+	}
+	if b.Tier() != 1 {
+		t.Errorf("an untiered building loaded at tier %d, want 1", b.Tier())
+	}
+	if got.Colony.Vespite != 0 {
+		t.Errorf("vespite loaded as %.2f, want 0", got.Colony.Vespite)
+	}
 }

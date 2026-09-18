@@ -56,9 +56,9 @@ const (
 
 	headerH = textHead*lineBox + 14
 
-	// Five resource rows — power, water, food, iron, crystal — and then the
-	// colonist line, which is a plain figure rather than a flow.
-	statusRows     = 5
+	// Six resource rows — power, water, food, iron, crystal, vespite — and
+	// then the colonist line, which is a plain figure rather than a flow.
+	statusRows     = 6
 	statusH        = headerH + statusRows*rowH + textMain*lineBox + 16
 	statusCompactH = headerH + statusRows*rowCompactH + textMain*lineBox + 16
 
@@ -103,6 +103,19 @@ func (g *Game) drawStatusPanel(h *hud, top float32, compact bool) float32 {
 	y += step
 
 	g.drawMineRow(h, y, iconCrystal, "CRYSTAL", c.Crystal, r.Cap.Crystal, r.Crystal, r.Spilled.Crystal, r.CrystalMines, compact)
+	y += step
+
+	// Vespite last of the stocks, because it is the only one that is not
+	// about staying alive. Its row is drawn even with no synthesizer standing
+	// — a resource the player has never seen is one they will never plan for,
+	// and an empty row that says what makes it is the cheapest way to say so.
+	if r.Cap.Vespite > 0 {
+		g.drawFlowRow(h, y, iconVespite, "VESPITE", c.Vespite, r.Cap.Vespite,
+			r.Vespite, r.Spilled.Vespite, compact)
+	} else {
+		h.rowLabel(y, iconVespite, "VESPITE")
+		h.rightLabel(colStockR, y, textMain, colDim, "no synthesizer")
+	}
 	y += step
 
 	// Population, as a plain line: it has a ceiling rather than a flow.
@@ -409,11 +422,31 @@ func (g *Game) drawInspector(h *hud, y float32) float32 {
 
 	if b, built := g.Colony.At(g.intent.hover); built {
 		spec := colony.Of(b.Kind)
+		name := spec.Name
+		if b.Tier() > 1 {
+			name = fmt.Sprintf("%s  tier %d", name, b.Tier())
+		}
+		h.clipped(panelX+14, line2, textSub, inspTextW, colAccent, "%s", name)
+
+		// In upgrade mode the second line is the price rather than the
+		// description: the description is what the player read before they
+		// built it, and what they want now is whether they can afford the
+		// next one.
+		if g.intent.mode == ModeUpgrade {
+			switch cost, err := g.Colony.CanUpgrade(g.intent.hover); {
+			case err != nil:
+				h.clipped(panelX+14, line3, textSub, inspTextW, colCritical, "%v", err)
+			default:
+				h.clipped(panelX+14, line3, textSub, inspTextW, colGood,
+					"tier %d for %.0f vespite + %.0f iron", b.Tier()+1, cost.Vespite, cost.Iron)
+			}
+			return y + inspectorH
+		}
+
 		note := spec.Desc
 		if b.Yield != 1 {
 			note = fmt.Sprintf("%s (x%.2f here)", note, b.Yield)
 		}
-		h.clipped(panelX+14, line2, textSub, inspTextW, colAccent, "%s", spec.Name)
 		h.clipped(panelX+14, line3, textSub, inspTextW, colDim, "%s", note)
 		return y + inspectorH
 	}
@@ -434,6 +467,8 @@ func (g *Game) drawInspector(h *hud, y float32) float32 {
 		h.label(panelX+14, line3, textSub, colDim, "left raises, right lowers (%d ore)", terraformCost)
 	case ModeDemolish:
 		h.label(panelX+14, line2, textSub, colDim, "nothing here to demolish")
+	case ModeUpgrade:
+		h.label(panelX+14, line2, textSub, colDim, "nothing here to upgrade")
 	}
 	return y + inspectorH
 }

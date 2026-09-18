@@ -64,8 +64,8 @@ var lampWarm = mgl32.Vec3{1.00, 0.68, 0.34}
 // slices a frame to light a colony would be the one place this game generates
 // garbage.
 type lighting struct {
-	part map[colony.Kind]int
-	base map[colony.Kind][3]float32
+	part map[partKey]int
+	base map[partKey][3]float32
 
 	// level is the current lamp brightness, 0 to 1, kept for the debug
 	// readout.
@@ -78,8 +78,8 @@ type lighting struct {
 
 func newLighting() lighting {
 	return lighting{
-		part: make(map[colony.Kind]int),
-		base: make(map[colony.Kind][3]float32),
+		part: make(map[partKey]int),
+		base: make(map[partKey][3]float32),
 	}
 }
 
@@ -140,7 +140,7 @@ func (g *Game) updateLights(e *glyph.Engine, sunElevation float32) {
 			Range: lampRange,
 			Color: lampWarm.Mul(level * lampIntensity),
 		}
-		if b.Kind == colony.Condenser && condenserPulsePart(g.scene.structParts[b.Kind]) >= 0 {
+		if b.Kind == colony.Condenser && condenserPulsePart(g.scene.partsFor(b.Kind, b.Tier())) >= 0 {
 			phase, envelope := condenserSweep(g.elapsed, b.At, 0)
 			light.Pos[1] = y + (condenserPulseBase+phase*condenserPulseTravel)*modelScale
 			light.Range = condenserLightRange
@@ -184,6 +184,26 @@ type lampCandidate struct {
 	dist  float32
 }
 
+// lampPart and lampBase resolve a structure's accent for a given tier, falling
+// back to its tier-1 art the same way partsFor does — a building drawn with
+// tier-1 geometry has to be lit with tier-1 lamp indices, or the glow lands on
+// whichever primitive happens to sit at that index.
+func (l *lighting) lampPart(k colony.Kind, tier uint8) (int, bool) {
+	if idx, ok := l.part[partKey{k, tier}]; ok {
+		return idx, true
+	}
+	idx, ok := l.part[partKey{k, 1}]
+	return idx, ok
+}
+
+func (l *lighting) lampBase(k colony.Kind, tier uint8) ([3]float32, bool) {
+	if base, ok := l.base[partKey{k, tier}]; ok {
+		return base, true
+	}
+	base, ok := l.base[partKey{k, 1}]
+	return base, ok
+}
+
 // updateLampGlow makes each structure's amber accent light up.
 //
 // The glow is the accent part of the model drawn full-bright, which is what
@@ -199,7 +219,7 @@ func (g *Game) updateLampGlow(e *glyph.Engine, level float32) {
 		if !ok {
 			continue
 		}
-		idx, has := g.lights.part[b.Kind]
+		idx, has := g.lights.lampPart(b.Kind, b.Tier())
 		if !has || idx >= len(ents) {
 			continue
 		}
@@ -214,7 +234,7 @@ func (g *Game) updateLampGlow(e *glyph.Engine, level float32) {
 
 		if !lit {
 			// Back to the material's own colour for daylight.
-			if base, okBase := g.lights.base[b.Kind]; okBase {
+			if base, okBase := g.lights.lampBase(b.Kind, b.Tier()); okBase {
 				if c, okCol := e.C.Color.Get(ent); okCol {
 					c.R, c.G, c.B = base[0], base[1], base[2]
 				}
@@ -222,7 +242,7 @@ func (g *Game) updateLampGlow(e *glyph.Engine, level float32) {
 			continue
 		}
 
-		if base, okBase := g.lights.base[b.Kind]; okBase {
+		if base, okBase := g.lights.lampBase(b.Kind, b.Tier()); okBase {
 			if c, okCol := e.C.Color.Get(ent); okCol {
 				// Toward the lamp colour as it brightens, so a lit accent is
 				// warmer than the metal it sits in rather than just lighter.

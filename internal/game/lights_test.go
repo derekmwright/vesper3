@@ -48,7 +48,7 @@ func TestCondenserPulseSpawnsMovesAndObeysPower(t *testing.T) {
 	c.Reindex()
 	c.Readout.PowerDemand = 4
 	c.Readout.Satisfaction = 1
-	g := &Game{Map: m, Colony: c, scene: scene{structParts: map[colony.Kind][]meshPart{colony.Condenser: {
+	g := &Game{Map: m, Colony: c, scene: scene{structParts: map[partKey][]meshPart{{colony.Condenser, 1}: {
 		{Name: "painted surfaces", Color: white, Scale: modelScale},
 		{Name: artcheck.LampName, Color: [3]float32{1, .43, .026}, Scale: modelScale},
 		{Name: artcheck.CondenserPulseName, Color: [3]float32{.015, .65, .35}, Scale: modelScale, CondenserPulse: true},
@@ -127,7 +127,7 @@ func TestCondenserNightLightUsesTealAndDimsWithPower(t *testing.T) {
 	c.Readout.Satisfaction = 1
 	g := &Game{
 		Map: m, Colony: c, cam: NewCamera(mgl32.Vec3{}),
-		scene:   scene{structParts: map[colony.Kind][]meshPart{colony.Condenser: {{CondenserPulse: true}}}},
+		scene:   scene{structParts: map[partKey][]meshPart{{colony.Condenser, 1}: {{CondenserPulse: true}}}},
 		elapsed: condenserPulsePeriod / 2,
 	}
 	e := &glyph.Engine{Scene: glyph.NewScene()}
@@ -337,7 +337,7 @@ func TestActivityFixturesRespondToPowerAndCoolant(t *testing.T) {
 	c.Reindex()
 	c.Readout.PowerDemand = 4
 	c.Readout.Satisfaction = 1
-	g := &Game{Map: m, Colony: c, scene: scene{structParts: map[colony.Kind][]meshPart{colony.Greenhouse: {{Name: "painted surfaces", Color: white, Scale: modelScale}, {Name: artcheck.GrowLightName, Color: [3]float32{.015, .8, .25}, Scale: modelScale}}}, buildingEnt: make(map[hex.Axial][]glyph.Entity)}}
+	g := &Game{Map: m, Colony: c, scene: scene{structParts: map[partKey][]meshPart{{colony.Greenhouse, 1}: {{Name: "painted surfaces", Color: white, Scale: modelScale}, {Name: artcheck.GrowLightName, Color: [3]float32{.015, .8, .25}, Scale: modelScale}}}, buildingEnt: make(map[hex.Axial][]glyph.Entity)}}
 	e := &glyph.Engine{Scene: glyph.NewScene()}
 	g.spawnBuilding(e, colony.Greenhouse, at)
 	ent := g.scene.buildingEnt[at][1]

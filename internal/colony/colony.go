@@ -75,6 +75,10 @@ type Building struct {
 	// It has no effect on the economy and is here anyway, because it is part
 	// of what the player placed and has to come back when they reload.
 	Facing uint8
+
+	// TierLevel is 1, 2 or 3, and 0 in a save written before tiers existed.
+	// Read it through Tier, which resolves the zero; see tier.go.
+	TierLevel uint8
 }
 
 // Facings is how many distinct headings a structure can have.
@@ -91,6 +95,12 @@ type Colony struct {
 	Water     float64
 	Food      float64
 	Colonists float64
+
+	// Vespite is the only stock with nothing to spend it on but upgrades. It
+	// is deliberately not a build material: a resource that did both would be
+	// spent on whichever was cheaper that minute, and the point of it is to
+	// be a decision the colony saves up for.
+	Vespite float64
 
 	// Charge is the energy in the colony's batteries, in power-seconds. It is
 	// a stock like the others and saves with them, so a colony reloads with
@@ -169,6 +179,7 @@ type Readout struct {
 	Crystal Flow
 	Water   Flow
 	Food    Flow
+	Vespite Flow
 
 	// IronMines and CrystalMines split Counts[Mine] by what the ground under
 	// each one yields, which is the only way the panel can draw a mine's
@@ -255,6 +266,7 @@ type Capacities struct {
 	Iron    float64
 	Crystal float64
 	Power   float64
+	Vespite float64
 }
 
 // New returns a colony with starting stores and nothing built.
@@ -271,12 +283,31 @@ func New() *Colony {
 
 // Errors placement can return. They are values rather than strings so the HUD
 // can react to them and a test can assert on them.
+// BuildRadius is how far from a habitat anything else may be built, in tiles.
+//
+// Labour was colony-wide and abstract: a mine on the far side of the continent
+// drew on the same pool of staff as one next door, and the map had no say in
+// where a colony went. This is the rule that gives the workforce a place to be.
+// Someone has to walk to that mine.
+//
+// It makes the habitat the anchor of expansion rather than a supply of bodies.
+// Reaching a distant ice sheet, a thermal vent or a stretch of coast is no
+// longer a matter of clicking on it — it means planting an outpost first and
+// feeding it, which is a decision with a cost rather than a free choice of
+// tile. Colonies come out as clusters joined by intent instead of sprawl.
+//
+// Four is a footprint of thirty-seven tiles per habitat: room to lay out a
+// working cluster around one, not enough to cover a continent from the landing
+// site.
+const BuildRadius = 4
+
 var (
 	ErrOffMap      = errors.New("outside the map")
 	ErrOccupied    = errors.New("tile already built on")
 	ErrTerrain     = errors.New("wrong ground")
 	ErrTooPoor     = errors.New("not enough materials")
 	ErrUnknownKind = errors.New("no such structure")
+	ErrNoHabitat   = errors.New("out of reach")
 )
 
 // At returns the building on a tile, if there is one.
@@ -292,7 +323,7 @@ func (c *Colony) At(a hex.Axial) (Building, bool) {
 // fits reports whether a structure could stand on a tile, ignoring what it
 // costs. Split from CanPlace so Found can reuse the siting rules without the
 // price check, rather than restating them and drifting apart from it.
-func (c *Colony) fits(m *world.Map, k Kind, a hex.Axial) error {
+func (c *Colony) fitsGround(m *world.Map, k Kind, a hex.Axial) error {
 	if k == None || k >= kindCount {
 		return ErrUnknownKind
 	}
@@ -305,10 +336,43 @@ func (c *Colony) fits(m *world.Map, k Kind, a hex.Axial) error {
 		return ErrOccupied
 	}
 	spec := Of(k)
-	if !spec.Needs.meets(tile.Terrain) {
+	if !spec.Needs.metBy(m, a) {
 		return fmt.Errorf("%w: %s needs %s", ErrTerrain, spec.Name, spec.Needs)
 	}
 	return nil
+}
+
+// fits is fitsGround plus the rule that someone has to be able to get there.
+func (c *Colony) fits(m *world.Map, k Kind, a hex.Axial) error {
+	if err := c.fitsGround(m, k, a); err != nil {
+		return err
+	}
+	spec := Of(k)
+
+	// Everything but a habitat has to be within walking distance of one.
+	// Habitats are exempt because they are what creates the reach: a rule that
+	// required one near a habitat could never be satisfied for the first one,
+	// and would leave a colony unable to expand past its landing site.
+	if spec.Housing == 0 && !c.InReach(a) {
+		return fmt.Errorf("%w: %s needs a Habitat within %d tiles",
+			ErrNoHabitat, spec.Name, BuildRadius)
+	}
+	return nil
+}
+
+// InReach reports whether a tile is close enough to a habitat to be staffed.
+//
+// Exported because "can anyone get there" is a question worth asking outside
+// the placement check itself — an overlay shading the reachable ground, or a
+// balance run that wants its build orders to be ones a player could actually
+// make.
+func (c *Colony) InReach(a hex.Axial) bool {
+	for _, b := range c.Buildings {
+		if Of(b.Kind).Housing > 0 && hex.Distance(b.At, a) <= BuildRadius {
+			return true
+		}
+	}
+	return false
 }
 
 // CanPlace reports why a structure cannot go on a tile, or nil if it can.
@@ -328,6 +392,18 @@ func (c *Colony) CanPlace(m *world.Map, k Kind, a hex.Axial) error {
 		return fmt.Errorf("%w: %s costs %.0f crystal, have %.0f", ErrTooPoor, spec.Name, spec.CrystalCost, c.Crystal)
 	}
 	return nil
+}
+
+// CanFound reports whether Found would succeed: the ground rules, and nothing
+// else. No cost, because founding does not charge, and no reach, because
+// founding is what puts the first habitat down.
+//
+// It exists so that callers which place by founding can also *search* by
+// founding. Asking CanPlace where a structure may go and then founding it
+// there is two different standards, and the gap shows up as a site rejected
+// by the search that Found would have accepted.
+func (c *Colony) CanFound(m *world.Map, k Kind, a hex.Axial) error {
+	return c.fitsGround(m, k, a)
 }
 
 // Place builds a structure facing the default direction.
@@ -353,7 +429,11 @@ func (c *Colony) PlaceFacing(m *world.Map, k Kind, a hex.Axial, facing uint8) er
 // built by them. Siting rules still apply — the lander does not set down on
 // the sea.
 func (c *Colony) Found(m *world.Map, k Kind, a hex.Axial) error {
-	if err := c.fits(m, k, a); err != nil {
+	// Ground rules still apply — the lander does not set down on the sea —
+	// but not the habitat reach rule. Reach is about the colony walking to
+	// work, and nothing founded was walked to: the landing site arrives with
+	// its first habitat, and there is no habitat to be near before that.
+	if err := c.fitsGround(m, k, a); err != nil {
 		return err
 	}
 	c.add(m, k, a, 0)
@@ -453,6 +533,7 @@ func (c *Colony) Tick(dt, daylight float64) {
 		ironOut, crystalOut          float64
 		waterOut, foodOut            float64
 		coolantIn, waterIn, foodIn   float64
+		vespiteOut, crystalIn        float64
 
 		// Water drawn to keep people alive rather than to run a process.
 		// Rationed separately from the industrial draw above, and on the same
@@ -469,7 +550,11 @@ func (c *Colony) Tick(dt, daylight float64) {
 		Food:    BaseFoodStore,
 	}
 	for _, b := range c.Buildings {
-		s := Of(b.Kind)
+		// Everything below reads the tier-scaled spec, so a tier-3 mine is
+		// simply a mine with bigger numbers and the rest of the tick does not
+		// have to know tiers exist. Jobs is the one field scaling leaves
+		// alone — see tier.go for why that is the whole mechanic.
+		s := Of(b.Kind).scaled(TierScale(b.Tier()))
 
 		switch {
 		case s.SolarDependent:
@@ -488,6 +573,7 @@ func (c *Colony) Tick(dt, daylight float64) {
 		r.Cap.Power += s.PowerStore
 		r.Cap.Water += s.WaterStore
 		r.Cap.Food += s.FoodStore
+		r.Cap.Vespite += s.VespiteStore
 
 		// A mine's product is the ground's, not the building's.
 		switch b.Ore {
@@ -504,6 +590,12 @@ func (c *Colony) Tick(dt, daylight float64) {
 		waterOut += s.WaterOut * b.Yield
 		foodOut += s.FoodOut * b.Yield
 		foodIn += s.FoodIn
+
+		// Synthesis. Not scaled by Yield: what the ground offers a lattice
+		// grower is the sea beside it, which siting already decided, and a
+		// terrain multiplier on top would be the same rule charged twice.
+		vespiteOut += s.VespiteOut
+		crystalIn += s.CrystalIn
 
 		// Three kinds of thirst, rationed at three different points. A
 		// generator's coolant comes off the top, because the grid cannot be
@@ -547,6 +639,7 @@ func (c *Colony) Tick(dt, daylight float64) {
 	c.Crystal = min(c.Crystal, r.Cap.Crystal)
 	c.Water = min(c.Water, r.Cap.Water)
 	c.Food = min(c.Food, r.Cap.Food)
+	c.Vespite = min(c.Vespite, r.Cap.Vespite)
 
 	// 2. The grid, in order: generation first, then the battery bank covering
 	// whatever generation missed, and only what is still short becomes a
@@ -621,6 +714,20 @@ func (c *Colony) Tick(dt, daylight float64) {
 		r.Water.Consumed += got / dt
 	}
 
+	// Crystal is drawn here rather than in the production step below, for the
+	// same reason water is: it is a feedstock, and a feedstock has to be taken
+	// out of the stock that exists before this tick's mining is added to it.
+	// Drawing it afterwards would let a synthesizer run on ore that had not
+	// come up yet, and a colony with no crystal mine at all would never notice
+	// it had run out.
+	crystalRatio := float64(1)
+	if want := crystalIn * sat * r.Staffing * dt; want > 0 {
+		got := min(want, c.Crystal)
+		c.Crystal -= got
+		crystalRatio = got / want
+		r.Crystal.Consumed += got / dt
+	}
+
 	// 5. Production. Everything below records what actually happened, divided
 	// back out by dt into a per-second rate. Recording the achieved amount
 	// rather than the intended one is the whole point: a greenhouse that ran
@@ -640,6 +747,15 @@ func (c *Colony) Tick(dt, daylight float64) {
 	c.Crystal, r.Spilled.Crystal = fill(c.Crystal, cut*dt, r.Cap.Crystal)
 	c.Water, r.Spilled.Water = fill(c.Water, drawn*dt, r.Cap.Water)
 	c.Food, r.Spilled.Food = fill(c.Food, grown*dt, r.Cap.Food)
+
+	// Synthesis needs everything the colony has: the grid, the tank, the crew
+	// and the crystal. It is the last thing to keep running and the first to
+	// stop, which is what makes it the measure of a colony that has stopped
+	// merely surviving.
+	synth := vespiteOut * works * crystalRatio
+	c.Vespite, r.Spilled.Vespite = fill(c.Vespite, synth*dt, r.Cap.Vespite)
+	r.Spilled.Vespite /= dt
+	r.Vespite.Produced = synth
 
 	r.Spilled.Iron /= dt
 	r.Spilled.Crystal /= dt
@@ -757,6 +873,8 @@ func (r Requirement) String() string {
 		return "an ice sheet"
 	case NeedsGeothermal:
 		return "a thermal vent"
+	case NeedsCoast:
+		return "ground on the coast"
 	default:
 		return "solid ground"
 	}

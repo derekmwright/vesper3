@@ -299,6 +299,7 @@ func TestCrystalIsItsOwnGate(t *testing.T) {
 	c, m := stocked(t, world.Regolith)
 	c.Crystal = Of(Battery).CrystalCost - 1
 
+	anchor(t, c, m, world.FromOffset(4, 4))
 	err := c.CanPlace(m, Battery, world.FromOffset(4, 4))
 	if err == nil {
 		t.Fatal("bought a battery without the crystal for it")

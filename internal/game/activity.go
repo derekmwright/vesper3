@@ -68,7 +68,7 @@ func configureCondenserPulse(e *glyph.Engine, ent glyph.Entity) {
 }
 
 func (g *Game) addCondenserPulseTrail(e *glyph.Engine, ents []glyph.Entity) []glyph.Entity {
-	idx := condenserPulsePart(g.scene.structParts[colony.Condenser])
+	idx := condenserPulsePart(g.scene.partsFor(colony.Condenser, 1))
 	if idx < 0 || idx >= len(ents) {
 		return ents
 	}
@@ -104,7 +104,7 @@ func condenserSweep(elapsed float32, at hex.Axial, trail int) (float32, float32)
 }
 
 func (g *Game) updateCondenserPulses(e *glyph.Engine) {
-	parts := g.scene.structParts[colony.Condenser]
+	parts := g.scene.partsFor(colony.Condenser, 1)
 	idx := condenserPulsePart(parts)
 	if idx < 0 {
 		return
@@ -313,7 +313,7 @@ func (g *Game) updateBuildingActivity(e *glyph.Engine) {
 			continue
 		}
 		if b.Kind == colony.Geothermal {
-			if idx, found := g.lights.part[b.Kind]; found && idx < len(ents) {
+			if idx, found := g.lights.lampPart(b.Kind, b.Tier()); found && idx < len(ents) {
 				setActivityGlow(e, ents[idx], furnaceColor, g.furnaceActivity(at)*(1.1+.8*g.lights.level))
 			}
 			continue
@@ -321,7 +321,7 @@ func (g *Game) updateBuildingActivity(e *glyph.Engine) {
 		if b.Kind != colony.Greenhouse && b.Kind != colony.Battery {
 			continue
 		}
-		for i, part := range g.scene.structParts[b.Kind] {
+		for i, part := range g.scene.partsFor(b.Kind, b.Tier()) {
 			if i >= len(ents) {
 				break
 			}

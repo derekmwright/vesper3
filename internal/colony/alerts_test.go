@@ -362,6 +362,7 @@ func TestCondenserWorksOnOrdinaryGround(t *testing.T) {
 	c.Iron = 10000
 	c.Crystal = 10000
 
+	anchor(t, c, m, world.FromOffset(4, 4))
 	if err := c.CanPlace(m, Condenser, world.FromOffset(4, 4)); err != nil {
 		t.Fatalf("condenser on regolith: %v", err)
 	}

@@ -144,12 +144,13 @@ down to 512 by `cmd/texscale` before they are embedded. See
 | wheel | zoom |
 | right-drag, middle-drag | orbit (the drag moves the world, not the camera) |
 | `C` | frame the whole continent |
-| `1`–`8` | pick a structure |
+| `1`–`0` | pick a structure |
 | left click | build |
 | `Shift` + wheel | turn the structure about to be placed |
 | `Shift` + right click | demolish, with a confirmation |
 | `X` | demolish mode |
 | `T` | terraform mode — left click raises, right click lowers |
+| `U` | upgrade mode — left click raises a structure a tier |
 | `F5` / `F9` | save and load |
 | `F3` | raw numbers over the panel (includes the lamp level) |
 | `[` `]` | interface scale |
@@ -170,6 +171,8 @@ start arriving to fill the habitat, and they eat, which is the first problem.
 | Atmospheric Condenser | 35 iron | anywhere | water, slowly and at a price in power. **1 staff** |
 | Greenhouse | 35 iron | solid ground; **lichen yields 1.5x** | food from water and power; stores some. **2 staff** |
 | Geothermal Plant | 60 iron + 10 crystal | a thermal vent | 26 power day and night, **for water**. **3 staff** |
+| Methane Plant | 45 iron | a coast | 20 power day and night, **and water** — burning methane makes it. **2 staff** |
+| Synthesizer | 60 iron + 25 crystal | a coast | **vespite**, from crystal and the sea it stands on. **3 staff** |
 
 ### Two ores, one building
 
@@ -206,6 +209,94 @@ water ──┬─▶ mine
 That last edge is the interesting one. A geothermal plant is a steam cycle and
 the cycle leaks, so night power is no longer unconditional: it is bought with
 water, and a colony that solves darkness has to have solved water first.
+
+### You can only build near a habitat
+
+Everything but a habitat has to go down within four tiles of one.
+
+Labour was colony-wide and abstract before this: a mine on the far side of the
+continent drew on the same pool of staff as one next door, and the map had no
+say in where a colony went. Four tiles is the rule that gives the workforce a
+place to be. Someone has to walk to that mine.
+
+What it buys is that reaching a distant ice sheet, a thermal vent or a stretch
+of coast stops being a matter of clicking on it. It means planting an outpost
+first and feeding it, which is a decision with a cost rather than a free choice
+of tile — and colonies come out as clusters joined by intent instead of sprawl.
+
+Habitats are exempt, and have to be. A rule that required one near a habitat
+could never be satisfied for the first one, and a colony could never expand
+past its landing site. So the habitat is what carries reach, and expansion is
+always a habitat first.
+
+The landing site is founded rather than built, and founding skips the rule for
+the same reason: the lander arrives before there is any habitat to be near.
+That distinction is `Found` versus `Place` in `internal/colony`, and it is also
+why the demo colony can put a geothermal plant six tiles out for a screenshot
+without that being a colony the game would let you build.
+
+### Vespite, and why anyone is on this rock
+
+Vespite is a carbon lattice grown on a crystal template. It cannot be made
+anywhere without hydrocarbon seas and the mineral to seed them, and Vesper III
+has both. That is the premise the colony rests on, and it is worth the game
+saying it in a mechanic rather than on a loading screen.
+
+A **Synthesizer** sits on the coast, draws crystal continuously and turns it
+into vespite at a hundredth of a unit a second. It takes no methane input
+because it is standing on the supply — the same reason the methane plant beside
+it does not.
+
+Vespite has exactly one use: upgrading a building a tier. That is deliberate. A
+resource that was also a build material would be spent on whichever was cheaper
+that minute, and the point of this one is to be something the colony saves up
+for. It is the only stock with a target rather than a rate to sustain.
+
+It is also the thing that finally gives the crystal flats a permanent job.
+Crystal was a one-off shopping trip — enough for a battery bank and a
+geothermal plant and then nothing — and a colony synthesising vespite is a
+colony still mining.
+
+### Tiers: two buildings' worth of plant, one building's worth of staff
+
+Every structure has three tiers. A tier multiplies every rate and every
+capacity the building has, and leaves `Jobs` alone.
+
+That one asymmetry is the whole mechanic. The build radius means tiles near a
+habitat are finite, and staff mean every new structure wants people who want
+food and water — so "build another one somewhere" runs out as a way to produce
+more. Upgrading is the other direction: the same footprint, the same crew, more
+plant.
+
+It is not strictly better, either. A tier-3 mine draws twice the power and
+twice the water for twice the ore, so tiering up does not quietly solve the
+grid or the tank. It buys back the one input a colony cannot simply build more
+of.
+
+```go
+// tier.go — every rate and every capacity scales; Jobs does not.
+func (s Spec) scaled(f float64) Spec {
+    s.MineOut *= f
+    s.PowerIn *= f
+    s.WaterIn *= f
+    // ... and the stores
+    return s
+}
+```
+
+Upgrading is not demolish-and-rebuild. A rebuild would refund the original,
+re-run the siting rules and re-roll the ore under a mine, and an upgrade is
+none of those things — so `Upgrade` moves the tier on the building that is
+already standing and the renderer swaps its geometry underneath.
+
+Only the mine has upgrade art so far. Everything else is upgradeable anyway and
+simply keeps its tier-1 look, because `scene.partsFor` falls back a tier when
+art for one is missing. The economy never waits on an artist.
+
+Tiers did not bump the save version. Both new fields are additive — an old save
+has no tier on any building and no vespite in the ledger, both of which decode
+as zero, and zero already means "tier 1" and "none yet". A bump would have made
+old saves unreadable to buy nothing.
 
 ### The resolution order is the design
 

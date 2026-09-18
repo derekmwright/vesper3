@@ -73,7 +73,13 @@ const panelOpacity = 0.86
 const (
 	atlasPath = "assets/icons.png"
 	atlasCols = 4
-	atlasRows = 4
+
+	// Five rows rather than four since the synthesizer and vespite arrived:
+	// ten structures and seven resource rows is seventeen cells, and sixteen
+	// was exactly full. The grid is declared to the packer rather than
+	// inferred from the source count, so a missing source file cannot quietly
+	// shrink the atlas out from under these indices.
+	atlasRows = 5
 )
 
 // Resource cells, after the structures.
@@ -97,8 +103,12 @@ var (
 	// the same treatment as the ones above it.
 	iconColonists = iconWater + 5
 
+	// Vespite sits last because it is the newest and because it is the only
+	// row that is not about staying alive.
+	iconVespite = iconWater + 6
+
 	// iconCount is how many cells the atlas actually has to hold.
-	iconCount = iconWater + 6
+	iconCount = iconWater + 7
 )
 
 // The panel bezel texture and how it slices.

@@ -124,6 +124,24 @@ func (m *Map) SurfaceY(a hex.Axial) float32 {
 }
 
 // IsSea reports whether a tile is under methane.
+// IsCoast reports whether a tile is buildable ground with the sea against it.
+//
+// Coastline is the most abundant siting rule in the game, which is the point:
+// every map is an island, so every map has plenty. It is the counterweight to
+// the thermal vent, which a map is allowed to have none of.
+func (m *Map) IsCoast(a hex.Axial) bool {
+	tile := m.At(a)
+	if tile == nil || !tile.Terrain.Info().Buildable {
+		return false
+	}
+	for d := range 6 {
+		if m.IsSea(a.Neighbor(d)) {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *Map) IsSea(a hex.Axial) bool {
 	t := m.At(a)
 	return t != nil && t.Terrain == Sea

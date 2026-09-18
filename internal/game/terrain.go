@@ -163,15 +163,15 @@ func (g *Game) initStructures(e *glyph.Engine) error {
 		// shape otherwise. Both end up as the same list of parts, so nothing
 		// downstream needs to know which it got.
 		var modelGeometry []renderer.ModelMesh
-		if parts, geom, ok := g.loadModel(e, i, k); ok {
+		if parts, geom, ok := g.loadModel(e, i, k, 1); ok {
 			modelGeometry = geom
-			g.scene.structParts[k] = parts
+			g.scene.structParts[partKey{k, 1}] = parts
 
 			// Which part lights up after dark, resolved now rather than per
 			// frame.
 			if idx, base, found := findLampPart(parts); found {
-				g.lights.part[k] = idx
-				g.lights.base[k] = base
+				g.lights.part[partKey{k, 1}] = idx
+				g.lights.base[partKey{k, 1}] = base
 			}
 		} else {
 			b := meshgen.Structure(k)
@@ -179,9 +179,24 @@ func (g *Game) initStructures(e *glyph.Engine) error {
 			if err != nil {
 				return fmt.Errorf("create %v mesh: %w", k, err)
 			}
-			g.scene.structParts[k] = []meshPart{{
+			g.scene.structParts[partKey{k, 1}] = []meshPart{{
 				Mesh: mesh, Color: white, Metallic: 0.18, Roughness: 0.55, Scale: 1,
 			}}
+		}
+
+		// The upgrades, where art for them exists. A tier with no model is
+		// simply not registered — scene.partsFor falls back to tier 1 — so a
+		// building can be upgradeable long before it is drawn as upgraded.
+		for tier := uint8(2); tier <= colony.MaxTier; tier++ {
+			parts, _, ok := g.loadModel(e, i, k, tier)
+			if !ok {
+				continue
+			}
+			g.scene.structParts[partKey{k, tier}] = parts
+			if idx, base, found := findLampPart(parts); found {
+				g.lights.part[partKey{k, tier}] = idx
+				g.lights.base[partKey{k, tier}] = base
+			}
 		}
 
 		// The preview reuses the structure's own geometry where there is a
@@ -324,6 +339,20 @@ func modelPath(i int, k colony.Kind) string {
 	return fmt.Sprintf("assets/models/%d-%s.glb", i+1, modelSlug(k))
 }
 
+// tierModelPath is where an upgraded structure's art lives.
+//
+// The layout is the art package's, not this game's: tier 1 stays where it has
+// always been, and the upgrades sit under a per-building directory keeping the
+// same canonical filename. Keeping the filename means cmd/modelcheck can
+// validate a tier with the same rules it validates the original by.
+func tierModelPath(i int, k colony.Kind, tier uint8) string {
+	if tier <= 1 {
+		return modelPath(i, k)
+	}
+	slug := modelSlug(k)
+	return fmt.Sprintf("assets/models/tiers/%s/tier%d/%d-%s.glb", slug, tier, i+1, slug)
+}
+
 // loadModel loads a structure's glTF, reporting false when there is not one.
 //
 // Models are optional per structure: the ones that have been built are used,
@@ -332,11 +361,11 @@ func modelPath(i int, k colony.Kind) string {
 // loadModel returns a structure's drawable parts and the raw geometry they
 // were decoded from. The geometry is what the placement preview is merged out
 // of; see ghost.go.
-func (g *Game) loadModel(e *glyph.Engine, i int, k colony.Kind) ([]meshPart, []renderer.ModelMesh, bool) {
+func (g *Game) loadModel(e *glyph.Engine, i int, k colony.Kind, tier uint8) ([]meshPart, []renderer.ModelMesh, bool) {
 	if g.cfg.Assets == nil {
 		return nil, nil, false
 	}
-	path := modelPath(i, k)
+	path := tierModelPath(i, k, tier)
 	if _, err := fs.Stat(g.cfg.Assets, path); err != nil {
 		return nil, nil, false
 	}

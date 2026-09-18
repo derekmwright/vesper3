@@ -36,8 +36,8 @@ func busGame(t *testing.T) (*Game, *glyph.Engine) {
 		intent: newIntent(),
 		ui:     newUI(),
 	}
-	g.scene.structParts[colony.Habitat] = []meshPart{{Scale: 1}}
-	g.scene.structParts[colony.SolarArray] = []meshPart{{Scale: 1}}
+	g.scene.structParts[partKey{colony.Habitat, 1}] = []meshPart{{Scale: 1}}
+	g.scene.structParts[partKey{colony.SolarArray, 1}] = []meshPart{{Scale: 1}}
 
 	e := &glyph.Engine{Scene: glyph.NewScene()}
 	g.subscribe(e)

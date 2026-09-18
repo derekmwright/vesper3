@@ -9,6 +9,7 @@ package colony
 import (
 	"fmt"
 
+	"github.com/derekmwright/vesper3/internal/hex"
 	"github.com/derekmwright/vesper3/internal/world"
 )
 
@@ -35,6 +36,12 @@ const (
 	// number in a save file, so new ones go on the end and Buildable decides
 	// where they appear.
 	Battery
+
+	// Methane likewise. Appended, never inserted.
+	Methane
+
+	// Synthesizer, the same.
+	Synthesizer
 
 	kindCount
 )
@@ -81,6 +88,16 @@ type Spec struct {
 	WaterOut float64
 	WaterIn  float64
 
+	// VespiteOut is synthesised, and CrystalIn is what it is synthesised from.
+	//
+	// Vespite is the only resource with no use but upgrades, and crystal is
+	// the only build material that anything consumes continuously. Those two
+	// facts are the same decision: it gives the crystal flats a permanent job
+	// rather than a one-off shopping trip, and it means a colony tiering up is
+	// a colony still mining.
+	VespiteOut float64
+	CrystalIn  float64
+
 	// FoodOut is grown; FoodIn is eaten. A habitat's FoodIn is the draw when
 	// every bed is filled, and the real draw scales with how full it is, so
 	// an empty habitat eats nothing.
@@ -111,6 +128,7 @@ type Spec struct {
 	FoodStore    float64
 	IronStore    float64
 	CrystalStore float64
+	VespiteStore float64
 }
 
 // Requirement is what a structure needs from the ground under it.
@@ -121,6 +139,11 @@ const (
 	NeedsOre
 	NeedsFrozen
 	NeedsGeothermal
+
+	// NeedsCoast wants buildable ground with the sea against it. Unlike the
+	// three above it, this is a rule about a tile's *neighbours*, which is why
+	// Requirement is resolved against the map rather than against a terrain.
+	NeedsCoast
 )
 
 // RefundFraction is how much of a structure's materials demolishing returns. Less than half would
@@ -218,12 +241,24 @@ var catalog = [kindCount]Spec{
 		WaterStore: 50, // the holding tank it draws into
 	},
 	Greenhouse: {
-		Name:      "Greenhouse",
-		Desc:      "Food from water; lichen ground yields more",
-		IronCost:  35,
-		Color:     [3]float32{0.30, 0.56, 0.34},
-		PowerIn:   4,
-		WaterIn:   0.25,
+		Name:     "Greenhouse",
+		Desc:     "Food from water; lichen ground yields more",
+		IronCost: 35,
+		Color:    [3]float32{0.30, 0.56, 0.34},
+		PowerIn:  4,
+
+		// The largest single draw in the game, and it used to be 0.25 — which
+		// put the mid-game 0.19/s short on water, so every build with mines in
+		// it ran with an empty tank and the water ratio quietly throttling
+		// everything. Adding a greenhouse to feed an outpost was then *fatal*:
+		// the new draw came out of a supply that had no slack, food production
+		// fell with it, and the colony ate itself. cmd/balance has the runs.
+		//
+		// At 0.20 the mid-game is still water-gated — two extractors do not
+		// cover a mining colony, and they are not meant to — but the gate is
+		// something to solve rather than something to survive.
+		WaterIn: 0.20,
+
 		FoodOut:   0.40,
 		Jobs:      2,
 		FoodStore: 60, // what it can keep before the next harvest
@@ -280,6 +315,69 @@ var catalog = [kindCount]Spec{
 		PowerStore: 1500,
 		Needs:      NeedsNothing,
 	},
+	Methane: {
+		Name: "Methane Plant",
+		Desc: "Burns the sea for power and water; needs a coast",
+
+		// The obvious power source on a moon with hydrocarbon seas, and for a
+		// long time the game did not have it — which left solar arrays on a
+		// world where the sun delivers four tenths of its nameplate and the
+		// ground is covered in fuel.
+		//
+		// It runs day and night like a geothermal plant, but its siting rule
+		// is coastline rather than a thermal vent, and every map is an island.
+		// So this is the power source a colony can always reach, where
+		// geothermal is the one it might be lucky enough to have.
+		//
+		// The water is the real point. Burning methane makes water — CH4 plus
+		// two O2 gives CO2 and two H2O — so a plant put down for power hands
+		// back the resource this colony actually fails on. That is not a
+		// convenience, it is the reaction. The oxidiser is the part the game
+		// waves at: there is no free oxygen on a world like this, so the
+		// PowerIn below is the plant making its own and the PowerOut is what
+		// is left over.
+		IronCost: 45,
+		Color:    [3]float32{0.38, 0.34, 0.30},
+		PowerOut: 20,
+		PowerIn:  4, // cracking oxidiser, and the intake pumps
+		WaterOut: 0.20,
+		Jobs:     2,
+		Needs:    NeedsCoast,
+
+		// A holding tank for what it condenses out of its own exhaust.
+		WaterStore: 40,
+	},
+	Synthesizer: {
+		Name: "Synthesizer",
+		Desc: "Grows vespite from sea methane and crystal; needs a coast",
+
+		// Why anyone is on this rock.
+		//
+		// Vespite is a carbon lattice grown on a crystal template, and it
+		// cannot be made anywhere that does not have hydrocarbon seas and the
+		// mineral to seed them. Vesper III has both. That is the premise the
+		// colony rests on and the reason the supply ships keep coming, and it
+		// is worth the game saying it somewhere other than a loading screen.
+		//
+		// It takes no methane input because it is standing on the supply —
+		// the same reason the plant next door does not. What it does take is
+		// crystal, continuously, which is the point: the flats stop being a
+		// one-off purchase and become somewhere the colony has to keep mining.
+		IronCost:    60,
+		CrystalCost: 25,
+		Color:       [3]float32{0.52, 0.40, 0.62},
+
+		// Slow on purpose. At 0.01/s one tier-2 upgrade is eight hundred
+		// seconds of synthesis — better than three day/night cycles — so
+		// tiering the colony up is a campaign rather than a shopping trip.
+		VespiteOut: 0.01,
+		CrystalIn:  0.05,
+		PowerIn:    12,
+		Jobs:       3,
+		Needs:      NeedsCoast,
+
+		VespiteStore: 25,
+	},
 	Condenser: {
 		Name: "Atmospheric Condenser",
 		Desc: "Water anywhere, slowly and at a price in power",
@@ -309,7 +407,7 @@ var catalog = [kindCount]Spec{
 var Buildable = []Kind{
 	Habitat, SolarArray, Mine,
 	Extractor, Condenser, Greenhouse, Geothermal,
-	Battery,
+	Battery, Methane, Synthesizer,
 }
 
 // Affordable reports whether a colony can pay for this structure. It is the
@@ -392,8 +490,13 @@ func Mines(k Kind, t world.Terrain) (world.Ore, float64) {
 }
 
 // meets reports whether terrain satisfies a requirement.
-func (r Requirement) meets(t world.Terrain) bool {
-	info := t.Info()
+func (r Requirement) metBy(m *world.Map, a hex.Axial) bool {
+	tile := m.At(a)
+	if tile == nil {
+		return false
+	}
+	info := tile.Terrain.Info()
+
 	switch r {
 	case NeedsOre:
 		return info.Ore != world.OreNone
@@ -401,6 +504,10 @@ func (r Requirement) meets(t world.Terrain) bool {
 		return info.Frozen
 	case NeedsGeothermal:
 		return info.Geothermal
+	case NeedsCoast:
+		// The only rule here that reads a tile's surroundings rather than the
+		// tile, which is why this takes a map at all.
+		return m.IsCoast(a)
 	default:
 		// Everything else needs ground that is simply stable enough to build
 		// on, which rules out sea and vents.

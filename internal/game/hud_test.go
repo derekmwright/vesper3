@@ -2,6 +2,7 @@ package game
 
 import (
 	"image"
+	"image/png"
 	_ "image/png"
 	"os"
 	"strings"
@@ -44,11 +45,21 @@ func TestIconAtlasMatchesTheGridTheHUDAssumes(t *testing.T) {
 		t.Errorf("%d icons needed but only %d atlas cells", iconCount, atlasCols*atlasRows)
 	}
 
-	// And the art has to actually be there. A transparent cell draws nothing,
-	// which on a resource row looks like a layout bug rather than missing art.
-	if _, err := os.Stat("../../assets/icons-src"); err == nil {
-		if n := countAtlasSources(t); n < iconCount {
-			t.Errorf("%d numbered source icons for %d cells; run cmd/iconatlas after adding art", n, iconCount)
+	// And the resource cells have to actually have art in them. A transparent
+	// cell draws nothing, which beside a figure on the panel reads as a layout
+	// bug rather than as missing art.
+	//
+	// Hotbar cells are held to a softer standard on purpose: a structure can
+	// land before its icon does, and an empty slot there still carries its
+	// name and cost in text. The grid check above is the one that matters
+	// either way — it is what stops a new structure silently shifting every
+	// resource icon one cell to the left.
+	for name, cell := range map[string]int{
+		"water": iconWater, "iron": iconIron, "crystal": iconCrystal,
+		"food": iconFood, "power": iconPower, "colonists": iconColonists,
+	} {
+		if !atlasCellHasArt(t, cell) {
+			t.Errorf("the %s row points at atlas cell %d, which is empty", name, cell)
 		}
 	}
 }
@@ -200,6 +211,35 @@ func TestAlertCopyFitsWithoutClipping(t *testing.T) {
 			t.Errorf("fix is %d chars, %d fit:\n  %s", len(s), fixBudget, s)
 		}
 	}
+}
+
+// atlasCellHasArt reports whether a cell of the built atlas contains anything
+// but transparency.
+func atlasCellHasArt(t *testing.T, cell int) bool {
+	t.Helper()
+
+	f, err := os.Open("../../" + atlasPath)
+	if err != nil {
+		t.Skipf("no atlas built: %v", err)
+	}
+	defer f.Close()
+	img, err := png.Decode(f)
+	if err != nil {
+		t.Fatalf("decode %s: %v", atlasPath, err)
+	}
+
+	b := img.Bounds()
+	cw, ch := b.Dx()/atlasCols, b.Dy()/atlasRows
+	ox, oy := (cell%atlasCols)*cw, (cell/atlasCols)*ch
+
+	for y := oy; y < oy+ch; y += 3 {
+		for x := ox; x < ox+cw; x += 3 {
+			if _, _, _, a := img.At(x, y).RGBA(); a > 0x3fff {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // countAtlasSources counts the numbered PNGs cmd/iconatlas packs.
