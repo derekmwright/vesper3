@@ -73,6 +73,13 @@ func simulate(label string, cycles int, build func(*colony.Colony, *world.Map)) 
 	verdict := "stable"
 	switch {
 	case c.Colonists < 1:
+		// The lose condition, and it is terminal by design rather than by
+		// accident. Nobody left means nothing staffed, and coolant is drawn
+		// before life support - so a geothermal plant takes every drop the
+		// extractors make, the tank never refills, and the population
+		// oscillates against zero however much is torn down. Verified by
+		// tearing a collapsed colony back to one habitat and watching it stay
+		// dead. A colony that reaches this has lost, not stalled.
 		verdict = "DEAD"
 	case everFell:
 		verdict = "LOSING PEOPLE"
