@@ -2,50 +2,46 @@ package artcheck
 
 import (
 	"fmt"
-	"math"
+	"strconv"
+	"strings"
 
 	"github.com/derekmwright/vesper3/internal/colony"
 )
 
-// The markers, and the rule for reading them.
+// The markers: the material names a structure uses to say "this primitive is
+// driven by the simulation".
 //
-// A marker is a base colour reserved to mean "this primitive is driven by the
-// simulation". They are dark, saturated and nothing like a paint colour, so a
-// modeller cannot reach one by accident: the battery's strips are all
-// (0.015, g, 0.85), the greenhouse's lamps (0.015, 0.8, 0.25), the condenser's
-// fin band (0.015, 0.65, 0.35).
+// A marker is a name now. It used to be a base colour — (0.015, 0.55, 0.85)
+// meant the battery's second charge strip — matched with a tolerance of 0.002,
+// because a colour makes a float32 round trip through the glTF exporter and an
+// exact comparison would fail on a file that is correct.
 //
-// The tolerance is what a glTF round trip costs. Colours go out as float32 and
-// come back through the exporter's own conversion, so an exact comparison
-// would fail on a file that is correct.
-const markerTolerance = 0.002
+// That tolerance was the whole problem. It was invisible in the art: nothing in
+// a modelling tool says 0.55 is load-bearing, it looks like a colour someone
+// picked. It was not greppable. It failed silently and late — a model
+// re-exported with its indicator merged into the body, or a thousandth off,
+// loaded without complaint and never lit up. And every driven part in the game
+// needed a globally distinct colour, because the RGB cube was the only
+// namespace there was.
+//
+// renderer.ModelMesh keeps the material name as of glyphengine#21, so the
+// handle is a string. Charge_Runtime_2 turns up in the model, in the exporter
+// and in the game, means one thing, and cannot be reached by accident.
+const (
+	// LampName is the warm accent every structure lights at dusk.
+	LampName = "Amber runtime lamp"
 
-func near(a, b float32) bool { return math.Abs(float64(a-b)) < markerTolerance }
+	// CondenserPulseName is the fin band that sweeps while a condenser draws.
+	CondenserPulseName = "CondenserPulse_Runtime"
 
-// Marker reports which simulation-driven part a colour names, or 0 for a
-// colour that is just paint.
-//
-// The battery returns 1 to 4 for its fill strips, bottom first, so a bank at
-// half charge can light the bottom two — and BatteryStatus for the pilot lamp
-// on the crown, which shows what the bank is doing rather than how full it is.
-// The greenhouse returns 1: it has one lamp bank.
-func Marker(kind colony.Kind, c [3]float32) int {
-	switch kind {
-	case colony.Greenhouse:
-		if near(c[0], .015) && near(c[1], .8) && near(c[2], .25) {
-			return 1
-		}
-	case colony.Battery:
-		if near(c[0], .015) && near(c[2], .85) {
-			for i := range BatteryStatus {
-				if near(c[1], .45+.1*float32(i)) {
-					return i + 1
-				}
-			}
-		}
-	}
-	return 0
-}
+	// GrowLightName is the greenhouse's lamp bank.
+	GrowLightName = "GrowLight_Runtime"
+
+	// chargePrefix names the battery's strips and its status lamp:
+	// Charge_Runtime_1 through _4 fill from the bottom, and _5_Status is the
+	// pilot lamp on the crown.
+	chargePrefix = "Charge_Runtime_"
+)
 
 // The battery's driven parts, in marker order: four fill strips from the
 // bottom up, then the pilot lamp above them.
@@ -60,37 +56,54 @@ const (
 	BatteryStatus = 5
 )
 
-// IsCondenserPulse reports the fin band that sweeps while a condenser runs.
-func IsCondenserPulse(c [3]float32) bool {
-	return near(c[0], .015) && near(c[1], .65) && near(c[2], .35)
+// Marker reports which simulation-driven part a material name identifies, or 0
+// for a material that is just paint.
+//
+// The battery returns 1 to 4 for its fill strips, bottom first, and
+// BatteryStatus for the pilot lamp. The greenhouse returns 1: it has one lamp
+// bank.
+func Marker(kind colony.Kind, name string) int {
+	switch kind {
+	case colony.Greenhouse:
+		if name == GrowLightName {
+			return 1
+		}
+	case colony.Battery:
+		rest, ok := strings.CutPrefix(name, chargePrefix)
+		if !ok {
+			return 0
+		}
+		// "5_Status" carries a suffix the strips do not, so the number is
+		// whatever leads.
+		if i := strings.IndexByte(rest, '_'); i >= 0 {
+			rest = rest[:i]
+		}
+		n, err := strconv.Atoi(rest)
+		if err != nil || n < 1 || n > BatteryStatus {
+			return 0
+		}
+		return n
+	}
+	return 0
 }
 
-// Warmest returns the index of the colour a dusk lamp should be driven from:
-// the warmest one, scored as how much more red than blue it is, weighted by
-// brightness so a dark brown does not beat a bright amber.
+// IsCondenserPulse reports the fin band that sweeps while a condenser runs.
+func IsCondenserPulse(name string) bool { return name == CondenserPulseName }
+
+// IsLamp reports the part a structure's dusk lamp is driven from.
 //
-// A heuristic rather than a reserved colour, because "the warm accent" is a
-// thing every model has anyway and reserving a colour for it would mean
-// retouching all eight. The cost is that it degrades quietly — a model with
-// nothing warm in it simply never lights — which is why it is asserted too.
-func Warmest(colors [][3]float32) (int, bool) {
-	best, bestScore := -1, float32(0)
-	for i, c := range colors {
-		if warmth := (c[0] - c[2]) * c[0]; warmth > bestScore {
-			best, bestScore = i, warmth
-		}
-	}
-	if best < 0 || bestScore < 0.02 {
-		return 0, false
-	}
-	return best, true
-}
+// This replaced a heuristic that picked whichever material was warmest —
+// reddest relative to blue, weighted by brightness. It worked, and degraded in
+// the worst possible way: a model with nothing warm in it simply never lit,
+// leaving an unexplained dark patch in a colony at night. A name either matches
+// or it does not.
+func IsLamp(name string) bool { return name == LampName }
 
 // Verify checks a model file against everything the game expects to find in
 // it, and returns one error per breach.
 //
 // This is the whole defence for a contract that is otherwise invisible. The
-// game matches these colours at load and silently does nothing when they are
+// game matches these names at load and silently does nothing when they are
 // absent — so a re-export that merges the battery's strips into its body
 // produces a bank that never lights, months later, in a build nobody connects
 // to the export.
@@ -111,64 +124,62 @@ func Verify(path string, kind colony.Kind) []error {
 		return problems
 	}
 
-	colors := make([][3]float32, len(mats))
-	for i, m := range mats {
-		colors[i] = m.BaseColor
-	}
-
 	switch kind {
 	case colony.Battery:
 		seen := map[int]string{}
 		for _, m := range mats {
-			n := Marker(kind, m.BaseColor)
+			n := Marker(kind, m.Name)
 			if n == 0 {
 				continue
 			}
 			if prev, taken := seen[n]; taken {
-				fail("%s: %q and %q both read as charge strip %d", path, prev, m.Name, n)
+				fail("%s: %q and %q both read as charge marker %d", path, prev, m.Name, n)
 			}
 			seen[n] = m.Name
 		}
 		for n := 1; n <= BatteryStrips; n++ {
 			if seen[n] == "" {
-				fail("%s: nothing reads as charge strip %d of %d, so the bank cannot show a partial charge",
-					path, n, BatteryStrips)
+				fail("%s: no %s%d, so the bank cannot show a partial charge",
+					path, chargePrefix, n)
 			}
 		}
 		if seen[BatteryStatus] == "" {
-			fail("%s: nothing reads as the status lamp, so the bank cannot show whether it is filling or draining",
-				path)
+			fail("%s: no %s%d_Status, so the bank cannot show whether it is filling or draining",
+				path, chargePrefix, BatteryStatus)
 		}
 
 	case colony.Condenser:
-		found := false
-		for _, m := range mats {
-			found = found || IsCondenserPulse(m.BaseColor)
-		}
-		if !found {
-			fail("%s: nothing reads as the fin band, so the condenser will not show that it is running", path)
+		if !anyMaterial(mats, func(m Material) bool { return IsCondenserPulse(m.Name) }) {
+			fail("%s: no %q, so the condenser will not show that it is running",
+				path, CondenserPulseName)
 		}
 
 	case colony.Greenhouse:
-		found := false
-		for _, m := range mats {
-			found = found || Marker(kind, m.BaseColor) != 0
-		}
-		if !found {
-			fail("%s: nothing reads as a grow lamp", path)
+		if !anyMaterial(mats, func(m Material) bool { return Marker(kind, m.Name) != 0 }) {
+			fail("%s: no %q", path, GrowLightName)
 		}
 	}
 
-	// The battery is the one structure with no warm accent: its charge strips
-	// are its night-time presence, and an amber lamp beside them would compete
-	// with the colour carrying the reading.
-	_, warm := Warmest(colors)
+	// The battery is the one structure with no dusk lamp, and deliberately:
+	// its charge strips are its night-time presence, and an amber lamp beside
+	// them would compete with the colour carrying the reading.
+	lamp := anyMaterial(mats, func(m Material) bool { return IsLamp(m.Name) })
 	switch {
-	case kind == colony.Battery && warm:
-		fail("%s: has a warm accent, which will be lit at dusk and fight the charge strips", path)
-	case kind != colony.Battery && !warm:
-		fail("%s: nothing warm to light at dusk, so it will stay dark after sunset", path)
+	case kind == colony.Battery && lamp:
+		fail("%s: has a %q, which will be lit at dusk and fight the charge strips",
+			path, LampName)
+	case kind != colony.Battery && !lamp:
+		fail("%s: no %q, so it will stay dark after sunset", path, LampName)
 	}
 
 	return problems
+}
+
+func anyMaterial(mats []Material, pred func(Material) bool) bool {
+	for _, m := range mats {
+		if pred(m) {
+			return true
+		}
+	}
+	return false
 }

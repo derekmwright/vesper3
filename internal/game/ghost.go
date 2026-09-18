@@ -1,6 +1,8 @@
 package game
 
 import (
+	"log"
+
 	"github.com/go-gl/mathgl/mgl32"
 
 	glyph "github.com/derekmwright/glyphengine"
@@ -29,19 +31,20 @@ import (
 // the texture, which is mud. So a ghost part is the structure's mesh with its
 // material dropped, which is the whole of the difference.
 //
-// # Why several entities
+// # One mesh, not one per primitive
 //
-// A glTF exporter splits a mesh by material, so a structure arrives as one
-// primitive per material and the ghost is one translucent entity per primitive.
-// Merging them into a single mesh would be better — one draw, and no blending
-// between a structure's own parts — but renderer.LoadGLTF returns GPU handles
-// and no vertex data, so there is nothing to merge on the CPU side.
-// (glyphengine#19.)
+// A glTF exporter splits a mesh by material, so a structure arrives as several
+// primitives. The preview used to be one translucent entity per primitive,
+// because renderer.LoadGLTF returned GPU handles and no vertex data and there
+// was nothing to merge on the CPU side. That cost a draw per primitive and,
+// worse, made a structure blend against *itself*: where two of its own parts
+// overlapped, the preview went denser.
 //
-// The blending that results is left visible rather than fought: where parts
-// overlap, the preview is denser. That reads as a hologram of something with
-// structure inside it, which is nearer what a placement preview is for than a
-// flat cutout would be.
+// glyphengine#19 retains the decoded geometry, so the parts are concatenated
+// into one mesh at load. One entity, one draw, and a preview with a single
+// consistent alpha — which is what a placement preview wants, because the
+// varying density read as depth in the model rather than as the flat statement
+// of intent it is meant to be.
 
 const ghostAlpha = 0.45
 
@@ -50,31 +53,60 @@ var (
 	ghostBadColor = [3]float32{1.00, 0.32, 0.28}
 )
 
-// ghostParts turns a structure's drawable parts into preview parts: same
-// geometry and scale, no material, no colour of their own.
+// buildGhostMesh prepares the preview geometry for one structure.
 //
-// The procedural fallback cannot be reused this way and takes a different
-// path — meshgen.Structure paints itself in vertex data, so tinting it green
-// would give the product of two colours. meshgen.Ghost is the same shapes in
-// flat white, and exists for exactly this.
-func ghostParts(structure []meshPart, ghostMesh *renderer.Mesh) []meshPart {
-	if ghostMesh != nil {
-		return []meshPart{{Mesh: ghostMesh, Scale: 1, Roughness: 0.6}}
+// A modelled structure's primitives are concatenated into a single mesh:
+// same vertices, same winding, indices rebased as each primitive is appended.
+// Anything without a model falls back to meshgen.Ghost, which builds the
+// procedural shapes in flat white - those genuinely cannot be reused, because
+// meshgen.Structure paints itself in vertex data and tinting it green would
+// give the product of two colours.
+func (g *Game) buildGhostMesh(e *glyph.Engine, k colony.Kind, geom []renderer.ModelMesh) error {
+	r := e.Renderer()
+
+	if len(geom) > 0 {
+		verts, idx, ok := mergeGeometry(geom)
+		if ok {
+			mesh, err := r.CreateIndexedMesh32(verts, idx)
+			if err != nil {
+				return err
+			}
+			g.scene.ghostParts[k] = []meshPart{{Mesh: mesh, Scale: modelScale, Roughness: 1}}
+			return nil
+		}
+		// A skinned primitive decodes to a different vertex layout and carries
+		// no Verts, so there is nothing to merge. Nothing here is skinned
+		// today; the fallback is so that changing that does not silently
+		// produce an empty preview.
+		log.Printf("%v has geometry that cannot be merged; using the procedural ghost", k)
 	}
 
-	out := make([]meshPart, 0, len(structure))
-	for _, p := range structure {
-		out = append(out, meshPart{
-			Mesh:  p.Mesh,
-			Scale: p.Scale,
-			// Flat and matte: a preview that catches a specular highlight
-			// reads as a surface that is already there.
-			Roughness:   1,
-			Metallic:    0,
-			DoubleSided: p.DoubleSided,
-		})
+	gb := meshgen.Ghost(k)
+	mesh, err := r.CreateIndexedMesh32(gb.Verts, gb.Idx)
+	if err != nil {
+		return err
 	}
-	return out
+	g.scene.ghostParts[k] = []meshPart{{Mesh: mesh, Scale: 1, Roughness: 0.6}}
+	return nil
+}
+
+// mergeGeometry concatenates a model's primitives into one vertex and index
+// buffer, rebasing each primitive's indices as it goes. It reports false if any
+// primitive has no geometry to contribute.
+func mergeGeometry(geom []renderer.ModelMesh) ([]renderer.Vertex, []uint32, bool) {
+	var verts []renderer.Vertex
+	var idx []uint32
+	for _, mm := range geom {
+		if len(mm.Verts) == 0 || len(mm.Idx) == 0 {
+			return nil, nil, false
+		}
+		base := uint32(len(verts))
+		verts = append(verts, mm.Verts...)
+		for _, i := range mm.Idx {
+			idx = append(idx, base+i)
+		}
+	}
+	return verts, idx, len(verts) > 0
 }
 
 // rebuildGhost replaces the preview entities with ones for the selected
@@ -143,22 +175,4 @@ func (g *Game) showGhost(e *glyph.Engine, pos mgl32.Vec3, yaw float32, col [3]fl
 			c.R, c.G, c.B = col[0], col[1], col[2]
 		}
 	}
-}
-
-// buildGhostMeshes prepares a preview for every buildable structure. Modelled
-// ones reuse their own geometry; anything falling back to procedural shapes
-// gets the flat-white version from meshgen.
-func (g *Game) buildGhostMeshes(e *glyph.Engine, k colony.Kind, modelled bool) error {
-	if modelled {
-		g.scene.ghostParts[k] = ghostParts(g.scene.structParts[k], nil)
-		return nil
-	}
-
-	gb := meshgen.Ghost(k)
-	mesh, err := e.Renderer().CreateIndexedMesh32(gb.Verts, gb.Idx)
-	if err != nil {
-		return err
-	}
-	g.scene.ghostParts[k] = ghostParts(nil, mesh)
-	return nil
 }

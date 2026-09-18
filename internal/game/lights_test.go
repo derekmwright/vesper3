@@ -7,6 +7,7 @@ import (
 	glyph "github.com/derekmwright/glyphengine"
 	"github.com/go-gl/mathgl/mgl32"
 
+	"github.com/derekmwright/vesper3/internal/artcheck"
 	"github.com/derekmwright/vesper3/internal/colony"
 	"github.com/derekmwright/vesper3/internal/hex"
 	"github.com/derekmwright/vesper3/internal/world"
@@ -48,9 +49,9 @@ func TestCondenserPulseSpawnsMovesAndObeysPower(t *testing.T) {
 	c.Readout.PowerDemand = 4
 	c.Readout.Satisfaction = 1
 	g := &Game{Map: m, Colony: c, scene: scene{structParts: map[colony.Kind][]meshPart{colony.Condenser: {
-		{Color: white, Scale: modelScale},
-		{Color: [3]float32{1, .43, .026}, Scale: modelScale},
-		{Color: [3]float32{.015, .65, .35}, Scale: modelScale, CondenserPulse: true},
+		{Name: "painted surfaces", Color: white, Scale: modelScale},
+		{Name: artcheck.LampName, Color: [3]float32{1, .43, .026}, Scale: modelScale},
+		{Name: artcheck.CondenserPulseName, Color: [3]float32{.015, .65, .35}, Scale: modelScale, CondenserPulse: true},
 	}}, buildingEnt: make(map[hex.Axial][]glyph.Entity)}, elapsed: condenserPulsePeriod / 2}
 	e := &glyph.Engine{Scene: glyph.NewScene()}
 	g.spawnBuilding(e, colony.Condenser, at)
@@ -109,7 +110,7 @@ func TestCondenserPulseSpawnsMovesAndObeysPower(t *testing.T) {
 }
 
 func TestPulseMarkerDoesNotCaptureBodyOrAmber(t *testing.T) {
-	if !isCondenserPulseColor([3]float32{.015, .65, .35}) || isCondenserPulseColor(white) || isCondenserPulseColor([3]float32{1, .43, .026}) {
+	if !isCondenserPulse(artcheck.CondenserPulseName) || isCondenserPulse("painted surfaces") || isCondenserPulse(artcheck.LampName) {
 		t.Fatal("pulse material classification is wrong")
 	}
 }
@@ -255,17 +256,18 @@ func TestLampsRampThroughDusk(t *testing.T) {
 	}
 }
 
-// The accent that glows is chosen by colour, so a remodelled structure keeps
-// working as long as it keeps one warm part.
-func TestFindLampPartPicksTheWarmAccent(t *testing.T) {
+// The accent that glows is chosen by material name, so a remodelled structure
+// keeps working as long as it keeps the lamp material - whatever colour the
+// artist gives it, and wherever it lands in the primitive order.
+func TestFindLampPartPicksTheNamedLamp(t *testing.T) {
 	parts := []meshPart{
-		{Color: [3]float32{0.30, 0.34, 0.40}}, // blue-grey body
-		{Color: [3]float32{0.90, 0.62, 0.20}}, // amber accent
-		{Color: [3]float32{0.10, 0.11, 0.13}}, // dark pad
+		{Name: "painted surfaces", Color: [3]float32{0.30, 0.34, 0.40}},
+		{Name: artcheck.LampName, Color: [3]float32{0.90, 0.62, 0.20}},
+		{Name: "pad", Color: [3]float32{0.10, 0.11, 0.13}},
 	}
 	idx, base, ok := findLampPart(parts)
 	if !ok {
-		t.Fatal("no accent found")
+		t.Fatal("no lamp found")
 	}
 	if idx != 1 {
 		t.Errorf("chose part %d, want 1", idx)
@@ -275,15 +277,27 @@ func TestFindLampPartPicksTheWarmAccent(t *testing.T) {
 	}
 }
 
-// A model with nothing warm in it must report so, rather than nominating its
-// least-blue part and glowing grey.
-func TestFindLampPartRejectsAColdModel(t *testing.T) {
+// The name is the whole rule, so a part that merely looks like a lamp is not
+// one. Under the colour heuristic this model would have lit its warmest part;
+// that is exactly the guessing the name replaced.
+func TestFindLampPartIgnoresAWarmPartThatIsNotTheLamp(t *testing.T) {
 	parts := []meshPart{
-		{Color: [3]float32{0.30, 0.34, 0.40}},
-		{Color: [3]float32{0.10, 0.11, 0.13}},
+		{Name: "painted surfaces", Color: [3]float32{0.30, 0.34, 0.40}},
+		{Name: "rust", Color: [3]float32{0.90, 0.62, 0.20}}, // warm, but not the lamp
 	}
 	if _, _, ok := findLampPart(parts); ok {
-		t.Error("found an accent in a model that has none")
+		t.Error("lit a part that only looked like a lamp")
+	}
+}
+
+// A model with no lamp material reports so, rather than nominating something.
+func TestFindLampPartRejectsAModelWithNoLamp(t *testing.T) {
+	parts := []meshPart{
+		{Name: "painted surfaces", Color: [3]float32{0.30, 0.34, 0.40}},
+		{Name: "pad", Color: [3]float32{0.10, 0.11, 0.13}},
+	}
+	if _, _, ok := findLampPart(parts); ok {
+		t.Error("found a lamp in a model that has none")
 	}
 }
 
@@ -323,7 +337,7 @@ func TestActivityFixturesRespondToPowerAndCoolant(t *testing.T) {
 	c.Reindex()
 	c.Readout.PowerDemand = 4
 	c.Readout.Satisfaction = 1
-	g := &Game{Map: m, Colony: c, scene: scene{structParts: map[colony.Kind][]meshPart{colony.Greenhouse: {{Color: white, Scale: modelScale}, {Color: [3]float32{.015, .8, .25}, Scale: modelScale}}}, buildingEnt: make(map[hex.Axial][]glyph.Entity)}}
+	g := &Game{Map: m, Colony: c, scene: scene{structParts: map[colony.Kind][]meshPart{colony.Greenhouse: {{Name: "painted surfaces", Color: white, Scale: modelScale}, {Name: artcheck.GrowLightName, Color: [3]float32{.015, .8, .25}, Scale: modelScale}}}, buildingEnt: make(map[hex.Axial][]glyph.Entity)}}
 	e := &glyph.Engine{Scene: glyph.NewScene()}
 	g.spawnBuilding(e, colony.Greenhouse, at)
 	ent := g.scene.buildingEnt[at][1]
@@ -352,7 +366,7 @@ func TestActivityFixturesRespondToPowerAndCoolant(t *testing.T) {
 		t.Fatal("dry furnace glows")
 	}
 	for _, kind := range []colony.Kind{colony.Greenhouse, colony.Battery} {
-		if activityMarker(kind, white) != 0 || activityMarker(kind, [3]float32{1, .43, .026}) != 0 {
+		if activityMarker(kind, "painted surfaces") != 0 || activityMarker(kind, artcheck.LampName) != 0 {
 			t.Fatal("marker captured body or amber")
 		}
 	}
@@ -491,7 +505,7 @@ func TestBatteryStatusAndIdleAnimation(t *testing.T) {
 	if status != 0 {
 		t.Fatal("unpowered empty bank heartbeat remains on")
 	}
-	if activityMarker(colony.Battery, [3]float32{.015, .85, .85}) != 5 {
+	if activityMarker(colony.Battery, "Charge_Runtime_5_Status") != 5 {
 		t.Fatal("status marker is not wired")
 	}
 }

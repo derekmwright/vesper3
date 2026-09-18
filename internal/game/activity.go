@@ -42,10 +42,10 @@ const (
 
 var condenserPulseColor = mgl32.Vec3{.025, .95, .62}
 
-// isCondenserPulseColor reports the fin band that sweeps while a condenser is
-// drawing water. Neither the white textured body nor the amber lamp can
-// accidentally become one; see internal/artcheck for the colours.
-func isCondenserPulseColor(c [3]float32) bool { return artcheck.IsCondenserPulse(c) }
+// isCondenserPulse reports the fin band that sweeps while a condenser is
+// drawing water. Neither the painted body nor the amber lamp can accidentally
+// become one; see internal/artcheck for the names.
+func isCondenserPulse(name string) bool { return artcheck.IsCondenserPulse(name) }
 
 func condenserPulsePart(parts []meshPart) int {
 	for i, p := range parts {
@@ -157,19 +157,18 @@ var growLightColor = mgl32.Vec3{.18, 1, .46}
 
 var furnaceColor = mgl32.Vec3{1, .31, .045}
 
-func activityMarker(kind colony.Kind, c [3]float32) int {
-	near := func(a, b float32) bool { return math.Abs(float64(a-b)) < .002 }
-	if kind == colony.Greenhouse && near(c[0], .015) && near(c[1], .8) && near(c[2], .25) {
-		return 1
-	}
-	if kind == colony.Battery && near(c[0], .015) && near(c[2], .85) {
-		for i := 0; i < 5; i++ {
-			if near(c[1], .45+.1*float32(i)) {
-				return i + 1
-			}
-		}
-	}
-	return 0
+// activityMarker reports which simulation-driven part a material identifies.
+//
+// The names live in internal/artcheck rather than here, because they are a
+// contract with the art rather than with the renderer - and cmd/modelcheck has
+// to read them without linking Vulkan to do it.
+//
+// This matched base colours with a 0.002 tolerance until glyphengine#21 made
+// renderer.ModelMesh keep the material name. The tolerance was the fragile
+// part: invisible in the art, not greppable, and a re-export a thousandth off
+// loaded fine and silently stopped lighting up.
+func activityMarker(kind colony.Kind, name string) int {
+	return artcheck.Marker(kind, name)
 }
 
 func activityWave(elapsed float32, at hex.Axial, period float64) float32 {
@@ -326,7 +325,7 @@ func (g *Game) updateBuildingActivity(e *glyph.Engine) {
 			if i >= len(ents) {
 				break
 			}
-			marker := activityMarker(b.Kind, part.Color)
+			marker := activityMarker(b.Kind, part.Name)
 			if marker == 0 {
 				continue
 			}

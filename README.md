@@ -103,12 +103,15 @@ commands this was actually built with rather than a layer over them.
 **To build:** Go 1.26+ and CGo with a C compiler, because GLFW and the Vulkan
 wrapper are cgo. **To run:** a GPU and driver with Vulkan 1.1.
 
-Windows and Linux are built and tested. macOS should work as of
-[glyphengine#20](https://github.com/derekmwright/glyphengine/issues/20) but has
-not been run by anyone yet — `task dist:macos` builds the `.app` and bundles
-MoltenVK, and [#23](https://github.com/derekmwright/glyphengine/issues/23) and
-[#24](https://github.com/derekmwright/glyphengine/issues/24) are the two things
-to expect if it misbehaves. Reports welcome.
+Windows and Linux are built and tested. macOS has everything it needs on the
+engine side — the portability opt-ins
+([#20](https://github.com/derekmwright/glyphengine/issues/20)), a real message
+when no Vulkan driver is present
+([#23](https://github.com/derekmwright/glyphengine/issues/23)), and mouse
+coordinates that agree with the framebuffer
+([#24](https://github.com/derekmwright/glyphengine/issues/24)) — but nobody has
+run it on a Mac yet. `task dist:macos` builds the `.app` and bundles MoltenVK.
+Reports welcome.
 
 The engine is pinned to a commit in `go.mod` rather than a tag, because it is
 v0.x and says outright that it breaks APIs without notice. Bumping it is a
@@ -555,13 +558,18 @@ under a green or red `Color`. One mesh serves both states. It used to be a crude
 procedural stand-in (a dome was a hemisphere, a mine was a box), which said
 where a building would go but nothing about what would be going there.
 
-A glTF exporter splits a mesh by material, so a structure arrives as one
-primitive per material and the preview is one translucent entity per primitive.
-Merging them would be better — one draw, and no blending between a structure's
-own parts — but `renderer.LoadGLTF` hands back GPU handles and no vertex data,
-so there is nothing to merge on the CPU side (glyphengine#19). The blending is
-left visible rather than fought: where parts overlap the preview is denser,
-which reads as a hologram of something with structure inside it.
+A glTF exporter splits a mesh by material, so a structure arrives as several
+primitives. They are concatenated into a single mesh at load — same vertices,
+same winding, indices rebased as each is appended — so the preview is one
+entity and one draw with a single consistent alpha.
+
+It was one translucent entity *per primitive* until
+[glyphengine#19](https://github.com/derekmwright/glyphengine/issues/19), because
+`LoadGLTF` returned GPU handles and discarded the geometry it had just decoded,
+leaving nothing to merge on the CPU side. That cost a draw per primitive and,
+worse, made a structure blend against itself: where two of its own parts
+overlapped the preview went denser. That was rationalised at the time as reading
+like a hologram. It read like a bug, and it was one.
 
 Anything with no model still falls back to `meshgen.Ghost`, which builds the
 procedural shapes in flat white — the procedural meshes paint themselves in
@@ -584,16 +592,16 @@ the measurement that found it rather than as an opinion.
 | [#13](https://github.com/derekmwright/glyphengine/issues/13) | overlay colours were linear while documented as sRGB, so a HUD backdrop written as 0.05 arrived at 0.24. See the note above the palette in `hud.go` — the fix required deleting this game's compensating helper *in the same commit* as the engine bump, or the conversion applies twice. |
 | [#14](https://github.com/derekmwright/glyphengine/issues/14) | panel mode hardcoded its interior fill, so a game could not choose its own panel colour |
 | [#20](https://github.com/derekmwright/glyphengine/issues/20) | macOS: the instance and device missed the two portability opt-ins MoltenVK requires. Without them `vkEnumeratePhysicalDevices` returns zero devices on a Mac and it surfaces as "no GPU found" on a machine with a perfectly good one. |
+| [#19](https://github.com/derekmwright/glyphengine/issues/19) | `LoadGLTF` discarded the geometry it had just decoded, so a model could only ever be a draw call. The placement ghost had to be one translucent entity per primitive, which cost a draw each and made a structure blend against *itself*. It is one merged mesh now. |
+| [#21](https://github.com/derekmwright/glyphengine/issues/21) | `ModelMesh` dropped the glTF material name, leaving base colour as the only way to identify a primitive — matched with a float tolerance that was invisible in the art, not greppable, and silent when it broke. `internal/artcheck` matches names now. |
+| [#23](https://github.com/derekmwright/glyphengine/issues/23) | a machine with no Vulkan driver got a null proc address rather than a message saying so. That is the default state of every Mac. |
+| [#24](https://github.com/derekmwright/glyphengine/issues/24) | `MousePos` was in screen points while `ScreenRay` divided by framebuffer pixels. They agree on a 1:1 display and are out by 2x on a Retina one — or on Windows at 200% scaling, which is where it was actually observed. |
 
 **Open, and why they matter here:**
 
 | | |
 |---|---|
 | [#12](https://github.com/derekmwright/glyphengine/issues/12) | the sky palette is baked into `atmosphere.inc`, which `applyFog` shares. Changing it through `WithShaders` means vendoring 430 lines of engine lighting into this repo to edit six constants. This is why the sky over an alien planet is still Earth's. |
-| [#19](https://github.com/derekmwright/glyphengine/issues/19) | `LoadGLTF` returns GPU handles and discards the geometry it just decoded, so a model cannot be merged, measured or derived from. The placement ghost is one translucent entity per primitive because of it. |
-| [#21](https://github.com/derekmwright/glyphengine/issues/21) | `ModelMesh` drops the glTF material name, so the only way to identify a primitive is its base colour. This is why `internal/artcheck` matches floating-point colours with a tolerance, and why `cmd/modelcheck` exists at all. |
-| [#23](https://github.com/derekmwright/glyphengine/issues/23) | a machine with no Vulkan driver gets a null proc address rather than a message saying so. That is the default state of every Mac. |
-| [#24](https://github.com/derekmwright/glyphengine/issues/24) | `MousePos` is in screen points, `ScreenRay` divides by framebuffer pixels. They agree on a 1:1 display and are out by 2x on a Retina one. |
 
 Instancing is deliberately **not** adopted. A colony reaches a few dozen
 structures in normal play, so batching would save a few dozen draw calls
@@ -609,9 +617,18 @@ measuring — one where I predicted a Windows no-op and was wrong — and that i
 the point rather than an embarrassment. An issue that reports a number can be
 argued with. An issue that reports a feeling cannot.
 
-Three of them say plainly that the finding was read from source rather than
-from a failing run, because I do not have a Mac. Saying so is what makes the
-other twelve trustworthy.
+Three of them said plainly that the finding was read from source rather than
+from a failing run, because there was no Mac to test on. Saying so is what makes
+the others trustworthy — and one of those three, #24, turned out to reproduce on
+Windows at 200% display scaling, which is how it got confirmed before a Mac was
+ever involved.
+
+The traffic goes both ways. The fix for #20 carries a correction to the report:
+it predicted the portability extension would be absent on Windows so that
+nothing would change there, and that is wrong — it is a *loader* extension and a
+current Windows loader advertises it, so the flag is set there too. Harmless,
+and measured rather than assumed. An issue that reports a number can be argued
+with; an issue that reports a feeling cannot.
 
 Instancing is deliberately **not** adopted yet. A colony reaches a few dozen
 structures in normal play, so batching would save a few dozen draw calls
@@ -797,14 +814,13 @@ indistinguishable.
 
 Three structures are animated by *material*. The game finds the battery bank's
 four charge strips and its status lamp, the condenser's fin band, and the
-greenhouse's grow lights by matching the base colour their primitive arrived
-with, then drives that primitive's emission from the simulation. There is no
-other handle: `renderer.ModelMesh` does not carry the material name, so an
-exact colour is all there is to match on.
+greenhouse's grow lights by **material name** — `Charge_Runtime_2`,
+`CondenserPulse_Runtime`, `GrowLight_Runtime` — and drives that primitive's
+emission from the simulation.
 
 That makes the art load-bearing, and it fails *silently*. A model re-exported
-with its indicator merged into the body, or with a colour a thousandth off,
-loads perfectly and simply never lights up.
+with its indicator merged into the body loads perfectly and simply never lights
+up.
 
 ```
 task models:check     # or: go run ./cmd/modelcheck assets/models-src/*.glb
@@ -817,11 +833,40 @@ regenerated all eight models, replaced every textured one with an untextured
 one, and reported success. The models were recovered by scanning a stale binary
 for glTF headers.
 
-`internal/artcheck` holds the colours and the rule for reading them, in a
-package with no engine dependency so a command-line tool can use it. The tests
-in `internal/game/models_test.go` assert the shipped art through the game's own
-matchers rather than restating the colours, so retuning a marker retunes the
-test with it — and `task check` runs the lot.
+#### It used to be colours, and that is the more useful story
+
+`renderer.ModelMesh` did not keep the material name, so appearance was the only
+handle there was and a marker was a reserved base colour — `(0.015, 0.55, 0.85)`
+meant the battery's second charge strip. Matched with a tolerance of 0.002,
+because a colour makes a float32 round trip through the exporter and an exact
+comparison fails on a file that is correct.
+
+The tolerance was the whole problem:
+
+- **Invisible in the art.** Nothing in a modelling tool says 0.55 is
+  load-bearing. It looks like a colour someone picked.
+- **Not greppable.** `Charge_Runtime_2` turns up in the model, the exporter and
+  the game. `0.55` turns up everywhere.
+- **One namespace.** Every driven part in the game needed a globally distinct
+  colour, because the RGB cube was all there was.
+- **Silent and late.** A re-export a thousandth off loaded fine and stopped
+  lighting up weeks later.
+
+The dusk lamp was worse: there was no reserved colour for it at all, just a
+heuristic picking whichever part was warmest. It worked, and degraded in the
+worst way available — a model with nothing warm in it never lit, and the symptom
+was an unexplained dark patch in a colony at night.
+
+[glyphengine#21](https://github.com/derekmwright/glyphengine/issues/21) was
+filed with that as the evidence, and `ModelMesh` keeps the name now. The
+matching is string equality; the tolerance is gone; `internal/artcheck` is
+shorter than the version that replaced it.
+
+`internal/artcheck` holds the names and the rule for reading them, in a package
+with no engine dependency so a command-line tool can use it. The tests in
+`internal/game/models_test.go` assert the shipped art through the game's own
+matchers rather than restating the names, so renaming a marker renames the test
+with it — and `task check` runs the lot.
 
 The typeface is [Exo 2](https://fonts.google.com/specimen/Exo+2), bundled under
 the SIL Open Font Licence — the licence travels with it in

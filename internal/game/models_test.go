@@ -60,7 +60,7 @@ func partsOf(t *testing.T, k colony.Kind) ([]meshPart, bool) {
 	}
 	parts := make([]meshPart, 0, len(mats))
 	for _, m := range mats {
-		parts = append(parts, meshPart{Color: m.BaseColor})
+		parts = append(parts, meshPart{Name: m.Name, Color: m.BaseColor})
 	}
 	return parts, true
 }
@@ -76,7 +76,7 @@ func TestBatteryModelCarriesItsFourChargeStrips(t *testing.T) {
 
 	seen := map[int]bool{}
 	for _, p := range parts {
-		if n := activityMarker(colony.Battery, p.Color); n != 0 {
+		if n := activityMarker(colony.Battery, p.Name); n != 0 {
 			if seen[n] {
 				t.Errorf("two materials both read as charge strip %d", n)
 			}
@@ -105,7 +105,7 @@ func TestCondenserModelCarriesItsPulseBand(t *testing.T) {
 		t.Skip("no condenser model built")
 	}
 	for _, p := range parts {
-		if isCondenserPulseColor(p.Color) {
+		if isCondenserPulse(p.Name) {
 			return
 		}
 	}
@@ -119,17 +119,17 @@ func TestGreenhouseModelCarriesItsGrowLamps(t *testing.T) {
 		t.Skip("no greenhouse model built")
 	}
 	for _, p := range parts {
-		if activityMarker(colony.Greenhouse, p.Color) != 0 {
+		if activityMarker(colony.Greenhouse, p.Name) != 0 {
 			return
 		}
 	}
 	t.Error("no material in the greenhouse model reads as a grow lamp")
 }
 
-// Every structure needs something warm for findLampPart to light at dusk. That
-// one is a heuristic rather than an exact colour, so it degrades quietly: a
-// model with nothing warm in it just never lights, and the colony gets a dark
-// patch nobody can explain.
+// Every structure needs the lamp material findLampPart looks for. It used to
+// be a heuristic over colours, which degraded quietly: a model with nothing
+// warm in it simply never lit, and the colony got a dark patch nobody could
+// explain. It is a name now, so this asserts the name is there.
 func TestEveryModelHasSomethingToLightAtDusk(t *testing.T) {
 	for _, k := range colony.Buildable {
 		parts, ok := partsOf(t, k)
@@ -164,6 +164,15 @@ func TestModelsKeepTheirMaterialsSeparate(t *testing.T) {
 		if len(parts) < 2 {
 			t.Errorf("%v exported as %d material(s); its markers have been merged into the body",
 				k, len(parts))
+			continue
+		}
+
+		// Nothing may be nameless: an unnamed material is one the game cannot
+		// identify at all, whatever it looks like.
+		for i, p := range parts {
+			if p.Name == "" {
+				t.Errorf("%v primitive %d has no material name", k, i)
+			}
 		}
 	}
 }

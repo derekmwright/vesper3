@@ -162,9 +162,9 @@ func (g *Game) initStructures(e *glyph.Engine) error {
 		// A modelled structure if one has been built for it, the procedural
 		// shape otherwise. Both end up as the same list of parts, so nothing
 		// downstream needs to know which it got.
-		modelled := false
-		if parts, ok := g.loadModel(e, i, k); ok {
-			modelled = true
+		var modelGeometry []renderer.ModelMesh
+		if parts, geom, ok := g.loadModel(e, i, k); ok {
+			modelGeometry = geom
 			g.scene.structParts[k] = parts
 
 			// Which part lights up after dark, resolved now rather than per
@@ -187,7 +187,7 @@ func (g *Game) initStructures(e *glyph.Engine) error {
 		// The preview reuses the structure's own geometry where there is a
 		// model for it; see ghost.go for why that needs the material dropped
 		// rather than merely the tint overridden.
-		if err := g.buildGhostMeshes(e, k, modelled); err != nil {
+		if err := g.buildGhostMesh(e, k, modelGeometry); err != nil {
 			return fmt.Errorf("create %v ghost mesh: %w", k, err)
 		}
 	}
@@ -314,19 +314,22 @@ func modelPath(i int, k colony.Kind) string {
 // Models are optional per structure: the ones that have been built are used,
 // and the rest keep their procedural geometry, so the set can be replaced one
 // at a time rather than all at once.
-func (g *Game) loadModel(e *glyph.Engine, i int, k colony.Kind) ([]meshPart, bool) {
+// loadModel returns a structure's drawable parts and the raw geometry they
+// were decoded from. The geometry is what the placement preview is merged out
+// of; see ghost.go.
+func (g *Game) loadModel(e *glyph.Engine, i int, k colony.Kind) ([]meshPart, []renderer.ModelMesh, bool) {
 	if g.cfg.Assets == nil {
-		return nil, false
+		return nil, nil, false
 	}
 	path := modelPath(i, k)
 	if _, err := fs.Stat(g.cfg.Assets, path); err != nil {
-		return nil, false
+		return nil, nil, false
 	}
 
 	model, err := e.Renderer().LoadGLTF(g.cfg.Assets, path)
 	if err != nil {
 		log.Printf("%s failed to load (%v); using procedural geometry", path, err)
-		return nil, false
+		return nil, nil, false
 	}
 
 	// One part per glTF primitive: the exporter splits a mesh by material, so
@@ -339,6 +342,7 @@ func (g *Game) loadModel(e *glyph.Engine, i int, k colony.Kind) ([]meshPart, boo
 			colour = white
 		}
 		parts = append(parts, meshPart{
+			Name:           mm.Name,
 			Mesh:           mm.Mesh,
 			Color:          colour,
 			Metallic:       mm.Metallic,
@@ -346,15 +350,15 @@ func (g *Game) loadModel(e *glyph.Engine, i int, k colony.Kind) ([]meshPart, boo
 			Texture:        mm.Texture,
 			Material:       mm.Material,
 			DoubleSided:    mm.DoubleSided,
-			CondenserPulse: k == colony.Condenser && isCondenserPulseColor(colour),
+			CondenserPulse: k == colony.Condenser && isCondenserPulse(mm.Name),
 			Scale:          modelScale,
 		})
 	}
 	if len(parts) == 0 {
-		return nil, false
+		return nil, nil, false
 	}
 	log.Printf("%s loaded: %d primitive(s)", path, len(parts))
-	return parts, true
+	return parts, model.Meshes, true
 }
 
 // modelSlug is the filename stem for a structure.

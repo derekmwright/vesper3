@@ -236,28 +236,22 @@ func (g *Game) updateLampGlow(e *glyph.Engine, level float32) {
 	g.lights.on = lit
 }
 
-// findLampPart picks the accent that should glow: the warmest part of the
-// model.
+// findLampPart picks the part a structure's dusk lamp is driven from.
 //
-// The icon brief asked for exactly one amber accent on every structure and the
-// Blender scripts kept it, so each model has one part whose base colour is
-// distinctly warmer than the blue-grey body. Choosing it by colour rather than
-// by index means a remodelled structure keeps working as long as it keeps its
-// accent.
-// findLampPart picks the part a structure's dusk lamp is driven from: the
-// warmest one. The rule lives in internal/artcheck alongside the exact-colour
-// markers, so the check that every model has something to light can run
-// without the engine.
+// A name match, as of glyphengine#21. It used to be a heuristic - whichever
+// part was warmest, reddest against blue and weighted by brightness - because
+// the loader did not keep material names and appearance was the only handle
+// there was. That worked, and degraded in the worst way available: a model
+// with nothing warm in it simply never lit, and the symptom was an unexplained
+// dark patch in a colony at night rather than anything that looked like a
+// failure.
 func findLampPart(parts []meshPart) (int, [3]float32, bool) {
-	colors := make([][3]float32, len(parts))
 	for i, p := range parts {
-		colors[i] = p.Color
+		if artcheck.IsLamp(p.Name) {
+			return i, p.Color, true
+		}
 	}
-	i, ok := artcheck.Warmest(colors)
-	if !ok {
-		return 0, [3]float32{}, false
-	}
-	return i, parts[i].Color, true
+	return 0, [3]float32{}, false
 }
 
 // smoothstep32 ramps between two edges, which may be given in either order so

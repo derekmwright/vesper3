@@ -26,6 +26,11 @@ import (
 // drawn with. Procedural structures are a single part carrying their colour in
 // vertex data; modelled ones are one part per glTF primitive.
 type meshPart struct {
+	// Name is the glTF material's name, and it is the handle the simulation
+	// finds a primitive by: the battery's charge strips, the condenser's fin
+	// band, the greenhouse's grow lights. See internal/artcheck.
+	Name string
+
 	Mesh           *renderer.Mesh
 	Color          [3]float32
 	Metallic       float32
