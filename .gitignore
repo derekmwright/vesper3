@@ -17,7 +17,10 @@
 # it can be looked at, rather than deleting the evidence of what went wrong.
 assets/models-src/.staging-*.glb
 
-# Model backups.
+# go-task's up-to-date cache.
+/.task/
+
+# Asset backups.
 #
 # These were the only safety net before this repository existed: a directory
 # copied aside by hand before each risky re-export. Git is that net now, and
@@ -26,6 +29,9 @@ assets/models-src/.staging-*.glb
 #
 # They are ignored rather than deleted. If you are reading this in a fresh
 # clone and there are none, that is correct - the history has them.
-assets/models-src/_backup-*/
-assets/models-src/backup-*/
-assets/models/_backup-*/
+# Anywhere under assets/, at any depth: these are hand-made safety copies from
+# before this repository existed, and git is that safety net now.
+assets/**/_backup-*/
+assets/**/backup-*/
+assets/_backup-*/
+assets/backup-*/
