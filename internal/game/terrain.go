@@ -424,6 +424,10 @@ func modelSlug(k colony.Kind) string {
 		return "geothermal"
 	case colony.Battery:
 		return "battery"
+	case colony.Methane:
+		return "methane"
+	case colony.Synthesizer:
+		return "synthesizer"
 	}
 	return "unknown"
 }

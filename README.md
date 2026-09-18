@@ -348,9 +348,10 @@ either running fine, or its bank is flat. A test pins that, because it is why
 the power advice has two night branches and not three.
 
 Water is the first thing that goes wrong. Habitats drink, greenhouses drink
-more, and ice is about one tile in eighty and sits at altitude — so the
-condenser exists as the worse-but-available answer when you did not land near
-any. It is deliberately beaten by the extractor on every axis, so ice stays
+more, and ice is scarce and sits at altitude — worldgen guarantees a floor of
+it per map rather than a share, because the band it forms in used to leave
+nearly half of all seeds with none at all — so the condenser exists as the
+worse-but-available answer when you did not land near any. It is deliberately beaten by the extractor on every axis, so ice stays
 worth walking to.
 
 ## Pointing and clicking
@@ -461,7 +462,7 @@ already been made for you. A ceiling means time alone earns nothing — what
 earns is building somewhere to put it, which is a decision, which is the game.
 
 Capacity comes from the buildings you already place. A habitat carries the
-larder and the tank for the eight people in it; a mine keeps a stockpile at the
+larder and the tank for the four people in it; a mine keeps a stockpile at the
 pithead; a battery bank holds power as it always did. So storage is not a
 separate thing to remember, it is a reason the same expansion pays twice — and
 `internal/colony` reports what is going over the side:
@@ -858,10 +859,10 @@ Both are optional at runtime: a missing bezel falls back to the flat panels the
 layout was built against, and a missing logo leaves a type-only title card.
 
 The icons were generated with an image model and packed by `cmd/iconatlas`
-into a single 512x384 texture, because the whole interface is otherwise one
+into a single 512x640 texture, because the whole interface is otherwise one
 draw call and a second texture would mean a second. Two sets share it: the
-first eight cells are the hotbar in `colony.Buildable` order, and the last four
-are the resources the status panel labels its rows with.
+first ten cells are the hotbar in `colony.Buildable` order, and the seven after
+them are the resources the status panel labels its rows with.
 
 The cell a source lands in is the number on the front of its filename, so the
 ordering is visible in a directory listing:
