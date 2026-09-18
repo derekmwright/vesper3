@@ -7,6 +7,7 @@ import (
 
 	glyph "github.com/derekmwright/glyphengine"
 	"github.com/derekmwright/glyphengine/renderer"
+	"github.com/derekmwright/glyphengine/renderer/lightcluster"
 )
 
 // The per-frame interface pass: what gets drawn, in what order, and what is
@@ -236,6 +237,22 @@ func (g *Game) drawDebugLines(e *glyph.Engine) {
 		g.Colony.Water, r.Water.Produced, r.Water.Consumed, r.Coolant)
 	e.Debugf("food   %8.3f  make %.4f  use %.4f", g.Colony.Food, r.Food.Produced, r.Food.Consumed)
 	e.Debugf("cam    dist %.1f pitch %.2f yaw %.2f", g.cam.Distance, g.cam.Pitch, g.cam.Yaw)
+
+	// What the light binner did with what this game handed it. Worth a line
+	// because every number in it is one this game can move: it submits the
+	// lights, and their range and position decide how many cells each one
+	// lands in.
+	//
+	// ScreenWideLights is the one to watch. Those are the lights every
+	// fragment in a slice evaluates whatever the clustering did, so they are
+	// the part of the old every-light loop that survived - and lamp range is
+	// what makes a light screen-wide.
+	ls := e.LightStats()
+	e.Debugf("lights sent %d  drawn %d  culled %d  dropped %d  of %d",
+		ls.Submitted, ls.Uploaded, ls.Culled, ls.DroppedOverBudget, renderer.MaxLights)
+	e.Debugf("       screen-wide %d  unbounded %d  worst cell %d/%d  overflowed %d",
+		ls.ScreenWideLights, ls.UnboundedLights,
+		ls.MaxCellDemand, lightcluster.MaxLightsPerCell, ls.CellsOverflowed)
 	if g.intent.hovering {
 		e.Debugf("hover  %v", g.intent.hover)
 	}

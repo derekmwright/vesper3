@@ -120,7 +120,7 @@ func (g *Game) handleKeys(e *glyph.Engine) {
 	// thing to do to a player exactly once. The demolition prompt consumes it
 	// before this runs; see Update.
 	if in.KeyPressed(input.KeyEscape) {
-		g.pause()
+		g.pause(e)
 		return
 	}
 

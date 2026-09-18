@@ -29,6 +29,12 @@ import (
 
 // startWorld replaces the current world with a freshly generated one.
 func (g *Game) startWorld(e *glyph.Engine, seed int64) error {
+	// A world always starts running, whatever the clock was doing before it.
+	// Leaving a paused game for the main menu would otherwise hand the menu a
+	// frozen backdrop, and the backdrop moving is the whole point of it being
+	// a world rather than a picture of one.
+	e.SetTimeScale(1)
+
 	m, err := world.NewMap(g.cfg.Cols, g.cfg.Rows, seed)
 	if err != nil {
 		return fmt.Errorf("create map: %w", err)
@@ -131,7 +137,7 @@ func (g *Game) handleMenu(e *glyph.Engine) {
 	// Escape closes the pause menu and does nothing on the main one, where
 	// there is nothing behind it to go back to.
 	if g.screen == screenPaused && e.Input().KeyPressed(input.KeyEscape) {
-		g.resume()
+		g.resume(e)
 		return
 	}
 
@@ -158,7 +164,7 @@ func (g *Game) handleMenu(e *glyph.Engine) {
 		g.menu = g.pauseMenu()
 
 	case actionResume:
-		g.resume()
+		g.resume(e)
 
 	case actionExitToMenu:
 		g.exitToMenu(e)
@@ -169,13 +175,35 @@ func (g *Game) handleMenu(e *glyph.Engine) {
 }
 
 // pause opens the in-game menu.
-func (g *Game) pause() {
+// clock is the part of the engine that pausing needs.
+//
+// An interface rather than *glyph.Engine because pause and resume are the
+// whole state machine for the in-game menu and are worth testing, and a
+// renderer cannot be stood up in a unit test. Narrowing it to the one method
+// also makes the dependency legible: pausing stops a clock, and that is all it
+// does to the engine.
+type clock interface {
+	SetTimeScale(float32)
+}
+
+func (g *Game) pause(e clock) {
 	g.screen = screenPaused
 	g.menu = g.pauseMenu()
+
+	// Stop the engine's clock too, not just this game's.
+	//
+	// Returning early from Update already stopped the colony, and for a game
+	// with no physics and no skinned meshes that looked like enough. It was
+	// not: the sun kept crossing the sky behind the menu, so pausing at dusk
+	// to read the panel and coming back found the lamps on and the solar
+	// arrays dead. The engine's own note on SetTimeScale is blunt about it -
+	// a game that pauses by returning early gets away with it by luck.
+	e.SetTimeScale(0)
 }
 
 // resume closes it.
-func (g *Game) resume() {
+func (g *Game) resume(e clock) {
 	g.screen = screenPlaying
 	g.menu = nil
+	e.SetTimeScale(1)
 }

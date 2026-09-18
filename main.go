@@ -85,6 +85,7 @@ func main() {
 		cursorY   = flag.Float64("cursory", -1, "pin the pick ray to this fraction down the window (<0 follows the mouse)")
 		showVer   = flag.Bool("version", false, "print the build version and exit")
 		noSplash  = flag.Bool("nosplash", false, "skip the title card")
+		debug     = flag.Bool("debug", false, "open with the F3 readout up")
 		demo      = flag.Bool("demo", false, "put a sample colony down at the landing site, for screenshots")
 		timeOfDay = flag.Float64("timeofday", 0, "start the clock here: 0.25 sunrise, 0.5 noon, 0.75 sunset")
 		dayLength = flag.Float64("daylen", 0, "seconds per day; negative freezes the clock")
@@ -112,6 +113,7 @@ func main() {
 		CamPitch:  float32(*camPitch),
 		CamYaw:    float32(*camYaw),
 		NoSplash:  *noSplash,
+		Debug:     *debug,
 		TimeOfDay: float32(*timeOfDay),
 		DayLength: float32(*dayLength),
 		UIScale:   float32(*uiScale),

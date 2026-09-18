@@ -220,8 +220,9 @@ func TestThePauseMenuCanBeLeft(t *testing.T) {
 func TestPauseAndResumeAreSymmetric(t *testing.T) {
 	g := &Game{}
 	g.cfg.SavePath = t.TempDir() + "/none.json"
+	clk := &fakeClock{scale: 1}
 
-	g.pause()
+	g.pause(clk)
 	if g.screen != screenPaused {
 		t.Errorf("pause left the screen as %d", g.screen)
 	}
@@ -229,9 +230,19 @@ func TestPauseAndResumeAreSymmetric(t *testing.T) {
 		t.Fatal("pause opened no menu")
 	}
 
-	g.resume()
+	// The engine's clock, not just this game's. Returning early from Update
+	// stops the colony and nothing else; the sun kept crossing the sky behind
+	// the menu until pause started saying so.
+	if clk.scale != 0 {
+		t.Errorf("pause left the simulation running at %.1fx", clk.scale)
+	}
+
+	g.resume(clk)
 	if g.screen != screenPlaying {
 		t.Errorf("resume left the screen as %d", g.screen)
+	}
+	if clk.scale != 1 {
+		t.Errorf("resume left the simulation at %.1fx", clk.scale)
 	}
 	if g.menu != nil {
 		t.Error("resume left a menu behind, which drawHUD would still paint")
@@ -271,3 +282,9 @@ func TestTheTitleCardIsNotSharedWithTheMenu(t *testing.T) {
 		t.Error("a menu that does not exist is visible")
 	}
 }
+
+// fakeClock stands in for the engine in the pause tests; see the clock
+// interface in session.go.
+type fakeClock struct{ scale float32 }
+
+func (c *fakeClock) SetTimeScale(s float32) { c.scale = s }

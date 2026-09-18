@@ -107,6 +107,13 @@ type Config struct {
 	// one from the window height.
 	UIScale float32
 
+	// Debug opens with the F3 readout already up, for the same reason the
+	// camera and the clock can be pinned: the numbers it carries - the light
+	// binner's counts, the coolant ratio, the lamp level - are the ones worth
+	// capturing, and a capture that needs someone to press a key first is not
+	// one a script can take.
+	Debug bool
+
 	// Cursor pins the pick ray to a point on screen, in fractions of the
 	// window, instead of following the mouse. Negative means follow the mouse.
 	//
@@ -230,6 +237,8 @@ func (g *Game) Init(e *glyph.Engine) error {
 	// -nosplash means "skip the front end and give me the game", which is what
 	// every screenshot and capture command in this project wants. Without it
 	// the game opens on its menu.
+	g.ui.showDebug = g.cfg.Debug
+
 	if !g.cfg.NoSplash {
 		g.screen = screenMenu
 		g.menu = g.mainMenu()
