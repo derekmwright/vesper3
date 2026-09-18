@@ -110,7 +110,7 @@ func (g *Game) drawStatusPanel(h *hud, top float32, compact bool) float32 {
 	if r.Housing > 0 && c.Colonists >= r.Housing-0.01 {
 		popCol = colWarn
 	}
-	h.label(panelX+rowTextX, y, textMain, colDim, "COLONISTS")
+	h.rowLabel(y, iconColonists, "COLONISTS")
 	h.rightLabel(colStockR, y, textMain, popCol, "%.0f / %.0f", c.Colonists, r.Housing)
 	h.rightLabel(colRateR, y+1, textSub, colDim, "%d structures", len(c.Buildings))
 

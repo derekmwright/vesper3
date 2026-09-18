@@ -92,8 +92,13 @@ var (
 	iconFood    = iconWater + 3
 	iconPower   = iconWater + 4
 
+	// Colonists are not a resource — no bar, no rate, a ceiling rather than a
+	// flow — but the row still sits in the same column and reads better with
+	// the same treatment as the ones above it.
+	iconColonists = iconWater + 5
+
 	// iconCount is how many cells the atlas actually has to hold.
-	iconCount = iconWater + 5
+	iconCount = iconWater + 6
 )
 
 // The panel bezel texture and how it slices.
