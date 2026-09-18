@@ -19,7 +19,9 @@ import (
 // when a structure is placed, despawned when it is demolished. Anything that
 // can be recomputed from the map or the colony does not belong here.
 type scene struct {
-	steam steamSystem
+	steam             steamSystem
+	flareCandidates   []steamCandidate
+	buildingParticles []renderer.ParticleInstance
 	// Chunk meshes are dynamic because terraforming rewrites them in place.
 	chunkMesh map[meshgen.ChunkID]*renderer.Mesh
 	chunkEnt  map[meshgen.ChunkID]glyph.Entity

@@ -153,6 +153,14 @@ func (g *Game) updateLights(e *glyph.Engine, sunElevation float32) {
 			light.Range = radius
 		}
 
+		if b.Kind == colony.Methane && g.methaneHasStack(b.Tier()) {
+			if flare := methaneFlare(g.elapsed, b.At); flare > .001 {
+				light.Pos = g.methaneStackPosition(b.At, b.Facing).Add(mgl32.Vec3{0, .10, 0})
+				light.Range = 1.65
+				light.Color = mgl32.Vec3{1, .44, .10}.Mul(level * (.16 + .75*flare))
+			}
+		}
+
 		g.lights.scratch = append(g.lights.scratch, lampCandidate{
 			light: light,
 			dist:  eye.Sub(mgl32.Vec3{x, y, z}).LenSqr(),
@@ -162,14 +170,6 @@ func (g *Game) updateLights(e *glyph.Engine, sunElevation float32) {
 	// The engine takes at most renderer.MaxLights and truncates the rest, so
 	// choose which ones survive rather than letting slice order decide: the
 	// nearest are the ones whose light the player can actually see.
-	if len(g.lights.scratch) > maxLamps {
-		sort.Slice(g.lights.scratch, func(i, j int) bool {
-			return g.lights.scratch[i].dist < g.lights.scratch[j].dist
-		})
-		g.lights.scratch = g.lights.scratch[:maxLamps]
-	}
-
-	g.lights.points = g.lights.points[:0]
 	//
 	// That ceiling was 32 when this was written, which a mid-game colony hit
 	// and a late one sailed past - so this was the difference between a lit
@@ -178,6 +178,14 @@ func (g *Game) updateLights(e *glyph.Engine, sunElevation float32) {
 	// nothing and does nothing. It stays because "nothing" is a fact about
 	// today's budget rather than a rule: the engine is free to lower it again,
 	// and dropping the far lights is still the right answer if it does.
+	if len(g.lights.scratch) > maxLamps {
+		sort.Slice(g.lights.scratch, func(i, j int) bool {
+			return g.lights.scratch[i].dist < g.lights.scratch[j].dist
+		})
+		g.lights.scratch = g.lights.scratch[:maxLamps]
+	}
+
+	g.lights.points = g.lights.points[:0]
 	for _, c := range g.lights.scratch {
 		g.lights.points = append(g.lights.points, c.light)
 	}

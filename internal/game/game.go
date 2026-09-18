@@ -226,7 +226,7 @@ func (g *Game) Init(e *glyph.Engine) error {
 	// below is spawned by the same path every later structure uses.
 	g.subscribe(e)
 
-	e.Renderer().InitParticles(steamMaxInstances)
+	e.Renderer().InitParticles(steamMaxInstances + flareMaxInstances)
 	g.initEnvironment(e)
 	g.initCamera()
 	g.foundLandingSite(e)
@@ -372,7 +372,7 @@ func (g *Game) Update(e *glyph.Engine, dt float32) {
 	sun := e.Environment().SunElevation
 	g.daylight = daylightFrom(sun)
 	g.updateLights(e, sun)
-	e.Renderer().UpdateParticleInstances(g.stepSteam(dt))
+	e.Renderer().UpdateParticleInstances(g.stepBuildingParticles(dt))
 
 	g.drawHUD(e)
 }
