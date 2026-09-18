@@ -211,6 +211,10 @@ type uiState struct {
 	// showDebug toggles the raw text readout over the panel, on F3.
 	showDebug bool
 
+	// runtime is the last sample of the Go runtime, kept between frames
+	// because taking one stops the world; see debugstats.go.
+	runtime runtimeStats
+
 	// confirm is the open question, if there is one. Demolition is the only
 	// irreversible action in the game, so it is the only one that asks.
 	confirm *confirmPrompt

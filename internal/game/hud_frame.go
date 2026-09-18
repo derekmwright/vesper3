@@ -311,6 +311,8 @@ func (g *Game) drawDebugLines(e *glyph.Engine, h *hud) {
 			ls.ScreenWideLights, ls.UnboundedLights,
 			ls.MaxCellDemand, lightcluster.MaxLightsPerCell, ls.CellsOverflowed))
 
+	lines = append(lines, g.runtimeLines(e)...)
+
 	if g.intent.hovering {
 		lines = append(lines, fmt.Sprintf("hover  %v", g.intent.hover))
 	}
