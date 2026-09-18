@@ -923,6 +923,31 @@ would be work for its own sake. The one real constraint is that the grid is
 fixed at startup — which is also why loading a save from a differently sized
 world is refused outright rather than half-applied.
 
+**But two parts of it were, and got filed.** The distinction is the whole job
+of a pathfinder: "this game did not need scene management" is a conclusion
+about this game, and the question that matters is whether the next adopter
+hits a wall here.
+
+- [#35](https://github.com/derekmwright/glyphengine/issues/35) — there is no
+  way to pause the *engine's* simulation. `Scene.Tick` runs unconditionally,
+  before `FixedUpdate`, so a game that returns early has stopped its own
+  simulation and none of the engine's: physics, character controllers,
+  interpolation, animation. This game is unaffected and filed it anyway,
+  because it is unaffected by luck — its entire simulation happens to live in
+  its own `FixedUpdate`. The first game on this engine with a rigid body and a
+  pause menu finds a crate still sliding behind it, and nothing errors.
+- [#36](https://github.com/derekmwright/glyphengine/issues/36) — `ui.UIManager`
+  has no focus traversal. `Clickable` is mouse-only and `Focusable` exists for
+  text entry, so there is no arrow-key or gamepad movement between widgets.
+  Which is why the menus here are hand-rolled rather than built from `ui`: the
+  one behaviour a main menu must have is the one the toolkit does not offer.
+
+What was *not* filed matters too. The camera not being set on menu frames was
+this game's bug, not the engine's — `Update` returned before `SetCamera` and
+the engine had simply never been given a view. And "add scene management" is
+not an issue, because nothing here needed it and a speculative request is worth
+less than no request.
+
 The main menu draws over a generated world with the camera framed on the whole
 continent and turning slowly, about three minutes to the revolution. A still
 image would be cheaper and would look like a photograph of the game instead of
