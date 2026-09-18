@@ -18,7 +18,7 @@ import (
 func batteryGame(charge, capacity, rate float64) *Game {
 	g := &Game{Colony: colony.New()}
 	g.Colony.Readout.Stored = charge
-	g.Colony.Readout.Capacity = capacity
+	g.Colony.Readout.Cap.Power = capacity
 	g.Colony.Readout.ChargeRate = rate
 	return g
 }

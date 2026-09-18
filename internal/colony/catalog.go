@@ -90,11 +90,27 @@ type Spec struct {
 	// Housing is how many colonists can live here.
 	Housing float64
 
-	// PowerStore is how much energy this holds, in power-seconds: a store of
-	// 600 covers a draw of 20 for thirty seconds. Storage is what makes solar
-	// a complete answer rather than half of one — without it a colony that
-	// runs on sunlight has no way to cross its own night.
-	PowerStore float64
+	// Jobs is how many colonists it takes to run this, at full output.
+	//
+	// Labour is the third input alongside power and water, and it is what
+	// makes a habitat something other than a cost centre: before this a
+	// habitat housed people who drank, ate and did nothing, so the only
+	// reason to build one was that the game kept offering more colonists.
+	// Now every mine and greenhouse wants staff, and staff want somewhere to
+	// live, which wants food, which wants a greenhouse, which wants staff.
+	Jobs float64
+
+	// Storage. A stock the colony has nowhere to put is a stock it loses, so
+	// these are what a resource bar is drawn against — a bar needs a maximum
+	// before "full" means anything.
+	//
+	// PowerStore is in power-seconds: a store of 600 covers a draw of 20 for
+	// thirty seconds. The rest are in plain units of their resource.
+	PowerStore   float64
+	WaterStore   float64
+	FoodStore    float64
+	IronStore    float64
+	CrystalStore float64
 }
 
 // Requirement is what a structure needs from the ground under it.
@@ -126,8 +142,19 @@ var catalog = [kindCount]Spec{
 		FoodIn:  8 * FoodPerColonist,
 		Housing: 8,
 		Needs:   NeedsNothing,
+
+		// A habitat is where the larder and the tank are, so it carries the
+		// stores for the people living in it. That ties storage to housing,
+		// which ties it to labour: a colony that expands to staff its mines
+		// gains the room to keep what they dig.
+		//
+		// It employs nobody. Living somewhere is not a job.
+		WaterStore: 60,
+		FoodStore:  40,
 	},
 	SolarArray: {
+		// No staff: a panel that needs someone standing next to it is not a
+		// solar panel. Same for the battery bank below.
 		Name:           "Solar Array",
 		Desc:           "14 power, daylight only",
 		IronCost:       25,
@@ -149,24 +176,39 @@ var catalog = [kindCount]Spec{
 		WaterIn:  0.12, // cutting slurry and dust suppression
 		MineOut:  0.55,
 		Needs:    NeedsOre,
+
+		// The largest employer in the game, which is the point: ore is what
+		// everything else is built out of, so the colony's first staffing
+		// problem should be the thing it needs most.
+		Jobs: 3,
+
+		// A stockpile at the pithead. Both are declared because a mine does
+		// not know which it will be until it is sited, and Spec is resolved
+		// before the ground is; the tick credits whichever the ground yields.
+		IronStore:    80,
+		CrystalStore: 40,
 	},
 	Extractor: {
-		Name:     "Ice Extractor",
-		Desc:     "Water from an ice sheet",
-		IronCost: 30,
-		Color:    [3]float32{0.50, 0.66, 0.74},
-		PowerIn:  5,
-		WaterOut: 0.45,
-		Needs:    NeedsFrozen,
+		Name:       "Ice Extractor",
+		Desc:       "Water from an ice sheet",
+		IronCost:   30,
+		Color:      [3]float32{0.50, 0.66, 0.74},
+		PowerIn:    5,
+		WaterOut:   0.45,
+		Needs:      NeedsFrozen,
+		Jobs:       2,
+		WaterStore: 50, // the holding tank it draws into
 	},
 	Greenhouse: {
-		Name:     "Greenhouse",
-		Desc:     "Food from water; lichen ground yields more",
-		IronCost: 35,
-		Color:    [3]float32{0.30, 0.56, 0.34},
-		PowerIn:  4,
-		WaterIn:  0.25,
-		FoodOut:  0.40,
+		Name:      "Greenhouse",
+		Desc:      "Food from water; lichen ground yields more",
+		IronCost:  35,
+		Color:     [3]float32{0.30, 0.56, 0.34},
+		PowerIn:   4,
+		WaterIn:   0.25,
+		FoodOut:   0.40,
+		Jobs:      2,
+		FoodStore: 60, // what it can keep before the next harvest
 	},
 	Geothermal: {
 		Name: "Geothermal Plant",
@@ -183,6 +225,10 @@ var catalog = [kindCount]Spec{
 		PowerOut:    26,
 		WaterIn:     0.15,
 		Needs:       NeedsGeothermal,
+
+		// A steam cycle wants watching. It is the one generator with staff.
+		Jobs:       3,
+		WaterStore: 40, // the makeup reservoir
 	},
 	Battery: {
 		Name: "Battery Bank",
@@ -218,11 +264,13 @@ var catalog = [kindCount]Spec{
 		// Iron only, deliberately. It is the guarantee that water is always
 		// solvable, and a guarantee that can itself be gated behind finding a
 		// crystal flat is not one.
-		IronCost: 35,
-		Color:    [3]float32{0.42, 0.54, 0.62},
-		PowerIn:  7,
-		WaterOut: 0.18,
-		Needs:    NeedsNothing,
+		IronCost:   35,
+		Color:      [3]float32{0.42, 0.54, 0.62},
+		PowerIn:    7,
+		WaterOut:   0.18,
+		Needs:      NeedsNothing,
+		Jobs:       1,
+		WaterStore: 30,
 	},
 }
 

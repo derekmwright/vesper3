@@ -13,7 +13,15 @@ func stocked(t *testing.T, ground world.Terrain) (*Colony, *world.Map) {
 	t.Helper()
 	m := flatMap(t, ground)
 	c := New()
-	c.Iron, c.Crystal = 100000, 100000
+
+	// Enough to build with, and under the base ceilings: a fixture stocked to
+	//100000 used to be harmless and now overflows on the first tick, which
+	// would mask whatever the test is actually about behind a spill.
+	c.Iron, c.Crystal = 350, 110
+
+	// Enough staff that nothing below is gated on labour. Tests that are
+	// about staffing set it themselves.
+	c.Colonists = 1000
 	return c, m
 }
 

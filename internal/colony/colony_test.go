@@ -272,8 +272,13 @@ func TestSolarStopsAtNightAndGeothermalDoesNot(t *testing.T) {
 func TestBrownoutScalesProductionByTheSupplyRatio(t *testing.T) {
 	m := flatMap(t, world.Dunes)
 	c := New()
-	c.Iron = 10000
-	c.Crystal = 10000
+	// Staffed: labour gates production, and this test is about something else.
+	c.Colonists = 100
+
+	// Under the iron ceiling, or the mine's output spills instead of landing
+	// in the stock this test measures the delta of.
+	c.Iron = 100
+	c.Crystal = 100
 
 	if err := c.Place(m, Mine, world.FromOffset(4, 4)); err != nil {
 		t.Fatal(err)
@@ -574,7 +579,12 @@ func greenhouseRun(t *testing.T, terrain world.Terrain) float64 {
 	mustPlace(t, c, m, Geothermal, world.FromOffset(6, 6))
 	mustPlace(t, c, m, Greenhouse, world.FromOffset(4, 4))
 
-	c.Water = 1e6
+	// Staffed, and started empty of food so the ten seconds below are all
+	// growth rather than growth against a ceiling. The water is capped to
+	// what there is room for: 1e6 would spill on the first tick and the
+	// greenhouse would then be measuring the tank rather than the ground.
+	c.Colonists = 100
+	c.Water = BaseWaterStore
 	c.Food = 0
 	for i := 0; i < 100; i++ {
 		c.Tick(0.1, 1)

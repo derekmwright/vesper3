@@ -91,18 +91,18 @@ func (g *Game) drawStatusPanel(h *hud, top float32, compact bool) float32 {
 	g.drawPowerRow(h, y, r, compact)
 	y += step
 
-	g.drawFlowRow(h, y, iconWater, "WATER", c.Water, r.Water, compact)
+	g.drawFlowRow(h, y, iconWater, "WATER", c.Water, r.Cap.Water, r.Water, r.Spilled.Water, compact)
 	y += step
 
-	g.drawFlowRow(h, y, iconFood, "FOOD", c.Food, r.Food, compact)
+	g.drawFlowRow(h, y, iconFood, "FOOD", c.Food, r.Cap.Food, r.Food, r.Spilled.Food, compact)
 	y += step
 
 	// Iron and crystal come out of the same building on different ground, so
 	// they are drawn the same way and read as a pair.
-	g.drawMineRow(h, y, iconIron, "IRON", c.Iron, r.Iron, r.IronMines, world.Dunes, compact)
+	g.drawMineRow(h, y, iconIron, "IRON", c.Iron, r.Cap.Iron, r.Iron, r.Spilled.Iron, r.IronMines, compact)
 	y += step
 
-	g.drawMineRow(h, y, iconCrystal, "CRYSTAL", c.Crystal, r.Crystal, r.CrystalMines, world.Crystal, compact)
+	g.drawMineRow(h, y, iconCrystal, "CRYSTAL", c.Crystal, r.Cap.Crystal, r.Crystal, r.Spilled.Crystal, r.CrystalMines, compact)
 	y += step
 
 	// Population, as a plain line: it has a ceiling rather than a flow.
@@ -112,7 +112,18 @@ func (g *Game) drawStatusPanel(h *hud, top float32, compact bool) float32 {
 	}
 	h.rowLabel(y, iconColonists, "COLONISTS")
 	h.rightLabel(colStockR, y, textMain, popCol, "%.0f / %.0f", c.Colonists, r.Housing)
-	h.rightLabel(colRateR, y+1, textSub, colDim, "%d structures", len(c.Buildings))
+
+	// Staffing, not the structure count: how many of the jobs the colony has
+	// created are actually being done is the thing that scales every other
+	// number on this panel.
+	jobCol := colDim
+	switch {
+	case r.Jobs > 0 && r.Staffing < 0.5:
+		jobCol = colCritical
+	case r.Jobs > 0 && r.Staffing < 0.999:
+		jobCol = colWarn
+	}
+	h.rightLabel(colRateR, y+1, textSub, jobCol, "%.0f of %.0f jobs", min(c.Colonists, r.Jobs), r.Jobs)
 
 	return top + height
 }
@@ -161,7 +172,7 @@ func (g *Game) drawPowerRow(h *hud, y float32, r colony.Readout, compact bool) {
 		// The reserve is the one number worth keeping when there is no room
 		// for the sub-line: it is what decides whether the next hour is a
 		// problem.
-		if r.Capacity > 0 {
+		if r.Cap.Power > 0 {
 			h.rightLabel(colStockR-52, y+1, textSub, bankColor(r), "%.0f", r.Stored)
 		}
 		return
@@ -170,7 +181,7 @@ func (g *Game) drawPowerRow(h *hud, y float32, r colony.Readout, compact bool) {
 	sub := fmt.Sprintf("making %.0f   using %.0f", r.PowerSupply, r.PowerDemand)
 	h.label(panelX+14, y+rowSubDY, textSub, colDim, "%s", sub)
 
-	if r.Capacity > 0 {
+	if r.Cap.Power > 0 {
 		// The bank, on the right of the same line: how much is in it, and
 		// which way it is going. The sign is the whole message — a colony
 		// charging at dusk is fine and one draining at dusk is on a clock.
@@ -178,7 +189,7 @@ func (g *Game) drawPowerRow(h *hud, y float32, r colony.Readout, compact bool) {
 		if rate > -colony.RateEpsilon && rate < colony.RateEpsilon {
 			rate = 0 // "-0/s" is not a direction
 		}
-		bank := fmt.Sprintf("bank %.0f/%.0f  %+.0f/s", r.Stored, r.Capacity, rate)
+		bank := fmt.Sprintf("bank %.0f/%.0f  %+.0f/s", r.Stored, r.Cap.Power, rate)
 		if r.ChargeRate < -0.001 && r.Stored > 0 {
 			bank += "  " + colony.Duration(r.Stored/-r.ChargeRate)
 		}
@@ -204,7 +215,7 @@ func bankColor(r colony.Readout) [3]float32 {
 
 // drawFlowRow is the two-sided readout the whole panel exists for: stock,
 // production, consumption, and — when it is falling — how long is left.
-func (g *Game) drawFlowRow(h *hud, y float32, cell int, name string, stock float64, f colony.Flow, compact bool) {
+func (g *Game) drawFlowRow(h *hud, y float32, cell int, name string, stock, capacity float64, f colony.Flow, spill float64, compact bool) {
 	h.rowLabel(y, cell, name)
 
 	// Flow.Rate rather than Flow.Net: a ledger that balances to within
@@ -221,10 +232,8 @@ func (g *Game) drawFlowRow(h *hud, y float32, cell int, name string, stock float
 
 	left := colony.SecondsLeft(stock, f)
 
-	// An empty store with something still drawing on it is a live shortage
-	// even when the ledger balances, and the bar cannot say so: a stock that
-	// is not falling has a full runway by definition. The figure says it
-	// instead.
+	// The figure is the stock against what there is room for, because that is
+	// the pair the bar under it draws.
 	stockCol := colInk
 	switch {
 	case stock <= 0 && f.Consumed > 0:
@@ -234,15 +243,11 @@ func (g *Game) drawFlowRow(h *hud, y float32, cell int, name string, stock float
 	case left >= 0 && left <= 300:
 		stockCol = colWarn
 	}
-	h.rightLabel(colStockR, y, textMain, stockCol, "%.1f", stock)
+	h.rightLabel(colStockR, y, textMain, stockCol, "%.0f / %.0f", stock, capacity)
 
-	h.runwayBar(panelX+14, y+rowBarDY, panelW-28, barH, left)
+	h.storeBar(panelX+14, y+rowBarDY, panelW-28, barH, stock, capacity, left)
 
 	if compact {
-		// Only the countdown survives compacting, and only when there is one:
-		// it is the half of the sub-line that is news. It gets its own column
-		// to the left of the figure — right-aligning it to the same edge as
-		// the stock drew the two on top of each other.
 		if left >= 0 {
 			col := colWarn
 			if left <= 90 {
@@ -254,10 +259,15 @@ func (g *Game) drawFlowRow(h *hud, y float32, cell int, name string, stock float
 	}
 
 	// The sub-line is where "do I need another extractor" is actually
-	// answered: the two halves side by side, and the runway if it is shrinking.
+	// answered: the two halves side by side, and the runway if it is
+	// shrinking — or what is being thrown away if it is not.
 	sub := fmt.Sprintf("making %.2f   using %.2f", f.Produced, f.Consumed)
 	subCol := colDim
-	if left >= 0 {
+	switch {
+	case spill >= colony.RateEpsilon:
+		sub += fmt.Sprintf("   full, losing %.2f", spill)
+		subCol = colAccent
+	case left >= 0:
 		sub += "   empty in " + colony.Duration(left)
 		subCol = colWarn
 		if left <= 90 {
@@ -274,9 +284,8 @@ func (g *Game) drawFlowRow(h *hud, y float32, cell int, name string, stock float
 // ground is a terrain that yields this ore, used only to work out what one
 // mine on it manages — the bar needs a full-rate figure to draw against and
 // asking colony.Yield is better than restating the multiplier here.
-func (g *Game) drawMineRow(h *hud, y float32, cell int, label string, stock float64, f colony.Flow, mines int, ground world.Terrain, compact bool) {
+func (g *Game) drawMineRow(h *hud, y float32, cell int, label string, stock, capacity float64, f colony.Flow, spill float64, mines int, compact bool) {
 	h.rowLabel(y, cell, label)
-	h.rightLabel(colStockR, y, textMain, colInk, "%.1f", stock)
 
 	made := f.Produced
 	if made < colony.RateEpsilon {
@@ -288,20 +297,30 @@ func (g *Game) drawMineRow(h *hud, y float32, cell int, label string, stock floa
 	}
 	h.rightLabel(colRateR, y, textMain, netCol, "%+.2f/s", made)
 
-	// The track is what the standing mines are actually managing against what
-	// they would manage fully powered and watered, so a brownout reads as a
-	// part-filled bar rather than as a number that is merely smaller than it
-	// was.
-	ore, perMine := colony.Mines(colony.Mine, ground)
-	capacity := float32(mines) * float32(perMine)
-	h.supplyBar(panelX+14, y+rowBarDY, panelW-28, barH, float32(f.Produced), capacity)
+	full := capacity > 0 && stock >= capacity-1e-6
+	stockCol := colInk
+	if full {
+		stockCol = colAccent
+	}
+	h.rightLabel(colStockR, y, textMain, stockCol, "%.0f / %.0f", stock, capacity)
+
+	// An ore is only spent in lumps when something is built, so it has no
+	// countdown to draw — the bar is purely how much room is left.
+	h.storeBar(panelX+14, y+rowBarDY, panelW-28, barH, stock, capacity, -1)
 
 	if !compact {
 		note := fmt.Sprintf("%d mine(s)   spent on building, not drawn", mines)
-		if mines == 0 {
-			note = fmt.Sprintf("no %s mine   put one on %s", ore, ground)
+		switch {
+		case spill >= colony.RateEpsilon:
+			note = fmt.Sprintf("%d mine(s)   full, losing %.2f/s", mines, spill)
+		case mines == 0:
+			note = "no mine   nothing is being cut"
 		}
-		h.label(panelX+14, y+rowSubDY, textSub, colDim, "%s", note)
+		col := colDim
+		if spill >= colony.RateEpsilon {
+			col = colAccent
+		}
+		h.label(panelX+14, y+rowSubDY, textSub, col, "%s", note)
 	}
 }
 

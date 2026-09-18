@@ -18,6 +18,7 @@ func TestFlowSeparatesProductionFromConsumption(t *testing.T) {
 	dry := New()
 	dry.Iron = 10000
 	dry.Crystal = 10000
+	dry.Colonists = 100 // staffed; this test is about flows, not labour
 	mustPlace(t, dry, m, Geothermal, world.FromOffset(6, 6))
 	mustPlace(t, dry, m, Habitat, world.FromOffset(4, 4))
 	dry.Tick(1, 1)
@@ -26,6 +27,7 @@ func TestFlowSeparatesProductionFromConsumption(t *testing.T) {
 	supplied := New()
 	supplied.Iron = 10000
 	supplied.Crystal = 10000
+	supplied.Colonists = 100 // staffed; this test is about flows, not labour
 	mustPlace(t, supplied, m, Geothermal, world.FromOffset(6, 6))
 	mustPlace(t, supplied, m, Extractor, world.FromOffset(3, 3))
 	for i := 0; i < 6; i++ {
@@ -52,6 +54,8 @@ func TestProducedReportsWhatActuallyHappened(t *testing.T) {
 	m.At(world.FromOffset(6, 6)).Terrain = world.Vent
 
 	c := New()
+	// Staffed: labour gates production, and this test is about something else.
+	c.Colonists = 100
 	c.Iron = 10000
 	c.Crystal = 10000
 	mustPlace(t, c, m, Geothermal, world.FromOffset(6, 6))
@@ -77,6 +81,8 @@ func TestProducedReportsWhatActuallyHappened(t *testing.T) {
 func TestReadoutShowsBrownoutScaledProduction(t *testing.T) {
 	m := flatMap(t, world.Dunes)
 	c := New()
+	// Staffed: labour gates production, and this test is about something else.
+	c.Colonists = 100
 	c.Iron = 10000
 	c.Crystal = 10000
 	mustPlace(t, c, m, Mine, world.FromOffset(4, 4))
@@ -169,15 +175,21 @@ func TestAHealthyColonySaysNothing(t *testing.T) {
 	m.At(world.FromOffset(6, 6)).Terrain = world.Vent
 
 	c := New()
-	c.Iron = 10000
-	c.Crystal = 10000
+	c.Iron = 400
+	c.Crystal = 100
 	mustPlace(t, c, m, Geothermal, world.FromOffset(6, 6))
 	mustPlace(t, c, m, Extractor, world.FromOffset(3, 3))
 	mustPlace(t, c, m, Greenhouse, world.FromOffset(4, 4))
 	mustPlace(t, c, m, Habitat, world.FromOffset(5, 5))
 	mustPlace(t, c, m, Habitat, world.FromOffset(5, 6))
 
-	c.Water, c.Food = 1e5, 1e5
+	// Healthy means healthy under every rule the colony has, and two of them
+	// are newer than this test: the jobs above have to be staffed, and the
+	// stores have to have room left. Filling water and food to 1e5 used to be
+	// the definition of well supplied and is now a colony throwing away
+	// everything it makes.
+	c.Colonists = 14 // staffs the 7 jobs, inside the 16 beds
+	c.Water, c.Food = 60, 60
 	for i := 0; i < 50; i++ {
 		c.Tick(0.1, 1)
 	}
@@ -280,6 +292,8 @@ func TestPowerAdviceFollowsTheTimeOfDayAndTheReserve(t *testing.T) {
 func TestBlackoutOutranksBrownout(t *testing.T) {
 	m := flatMap(t, world.Dunes)
 	c := New()
+	// Staffed: labour gates production, and this test is about something else.
+	c.Colonists = 100
 	c.Iron = 10000
 	c.Crystal = 10000
 	mustPlace(t, c, m, Mine, world.FromOffset(4, 4))

@@ -303,7 +303,7 @@ func TestFindLampPartRejectsAModelWithNoLamp(t *testing.T) {
 
 func TestActivityGaugeTracksStoredCharge(t *testing.T) {
 	g := &Game{Colony: colony.New()}
-	g.Colony.Readout.Capacity = 100
+	g.Colony.Readout.Cap.Power = 100
 	g.Colony.Readout.Stored = 50
 	for i := 1; i <= 4; i++ {
 		_, gain := g.batteryAppearance(hex.Axial{}, i)
@@ -320,7 +320,7 @@ func TestActivityGaugeTracksStoredCharge(t *testing.T) {
 	if g.batteryLevel() != 1 {
 		t.Fatal("charge is not clamped")
 	}
-	g.Colony.Readout.Capacity = 0
+	g.Colony.Readout.Cap.Power = 0
 	if g.batteryLevel() != 0 {
 		t.Fatal("zero capacity gauge")
 	}
@@ -479,7 +479,7 @@ func TestSteamHasBoundedBudgetAndFades(t *testing.T) {
 func TestBatteryStatusAndIdleAnimation(t *testing.T) {
 	g := &Game{Colony: colony.New()}
 	at := hex.Axial{}
-	g.Colony.Readout.Capacity = 100
+	g.Colony.Readout.Cap.Power = 100
 	g.Colony.Readout.Stored = 100
 	_, first := g.batteryAppearance(at, 1)
 	g.elapsed = 1.2
@@ -512,7 +512,7 @@ func TestBatteryStatusAndIdleAnimation(t *testing.T) {
 
 func TestBatteryChaseReversesWithEnergyFlow(t *testing.T) {
 	g := &Game{Colony: colony.New()}
-	g.Colony.Readout.Capacity = 100
+	g.Colony.Readout.Cap.Power = 100
 	g.Colony.Readout.Stored = 100
 	g.elapsed = 1.24
 	at := hex.Axial{}

@@ -177,10 +177,10 @@ func activityWave(elapsed float32, at hex.Axial, period float64) float32 {
 }
 
 func (g *Game) batteryLevel() float32 {
-	if g.Colony.Readout.Capacity <= 0 {
+	if g.Colony.Readout.Cap.Power <= 0 {
 		return 0
 	}
-	return clampF(float32(g.Colony.Readout.Stored/g.Colony.Readout.Capacity), 0, 1)
+	return clampF(float32(g.Colony.Readout.Stored/g.Colony.Readout.Cap.Power), 0, 1)
 }
 
 // batteryStatus drives the pilot lamp on the bank's crown. It answers a
@@ -203,7 +203,7 @@ func (g *Game) batteryStatus(at hex.Axial) (mgl32.Vec3, float32) {
 	}
 
 	switch {
-	case r.Capacity <= 0:
+	case r.Cap.Power <= 0:
 		return batteryFlatColor, 0
 
 	case r.ChargeRate > colony.RateEpsilon:
@@ -252,7 +252,7 @@ func (g *Game) batteryAppearance(at hex.Axial, segment int) (mgl32.Vec3, float32
 	// The fifth marker is a status LED, not another charge segment. It can
 	// indicate a powered empty bank without suggesting stored energy.
 	if segment == 5 {
-		powered := g.Colony.Readout.Capacity > 0 && (charge > 0 || g.Colony.Readout.PowerSupply > .001 || (g.Colony.Readout.PowerDemand > 0 && g.Colony.Readout.Satisfaction > .001))
+		powered := g.Colony.Readout.Cap.Power > 0 && (charge > 0 || g.Colony.Readout.PowerSupply > .001 || (g.Colony.Readout.PowerDemand > 0 && g.Colony.Readout.Satisfaction > .001))
 		if !powered {
 			return tint, 0
 		}

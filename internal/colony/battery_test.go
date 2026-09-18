@@ -17,6 +17,9 @@ func solarColony(t *testing.T, solar, mines, batteries int) (*Colony, *world.Map
 	c.Iron = 100000
 	c.Crystal = 100000
 
+	// Staffed, so these measure the grid rather than the labour supply.
+	c.Colonists = 1000
+
 	col := 0
 	place := func(k Kind, n int) {
 		for range n {
@@ -35,9 +38,9 @@ func solarColony(t *testing.T, solar, mines, batteries int) (*Colony, *world.Map
 // player looking for this building.
 func TestStorageCarriesASolarColonyThroughTheNight(t *testing.T) {
 	withBank, _ := solarColony(t, 2, 1, 2)
-	withBank.Charge = withBank.Readout.Capacity // start the night charged
-	withBank.Tick(0.1, 1)                       // one daylight tick to fill in Capacity
-	withBank.Charge = withBank.Readout.Capacity
+	withBank.Charge = withBank.Readout.Cap.Power // start the night charged
+	withBank.Tick(0.1, 1)                        // one daylight tick to fill in Capacity
+	withBank.Charge = withBank.Readout.Cap.Power
 
 	noBank, _ := solarColony(t, 2, 1, 0)
 
@@ -53,7 +56,7 @@ func TestStorageCarriesASolarColonyThroughTheNight(t *testing.T) {
 	if noBank.Readout.Satisfaction != 0 {
 		t.Errorf("an unbanked solar colony ran at %.2f after dark, want 0", noBank.Readout.Satisfaction)
 	}
-	if withBank.Charge >= withBank.Readout.Capacity {
+	if withBank.Charge >= withBank.Readout.Cap.Power {
 		t.Error("the bank carried the night without spending anything")
 	}
 }
@@ -89,7 +92,7 @@ func TestChargeIsCappedByCapacity(t *testing.T) {
 	for range 10000 {
 		c.Tick(0.1, 1)
 	}
-	cap := c.Readout.Capacity
+	cap := c.Readout.Cap.Power
 	if cap <= 0 {
 		t.Fatal("no capacity from a battery")
 	}
@@ -126,8 +129,8 @@ func TestDemolishingBatteriesSpillsTheirCharge(t *testing.T) {
 	}
 
 	c.Tick(0.1, 1)
-	if c.Charge > c.Readout.Capacity+1e-6 {
-		t.Errorf("charge %.1f survives in %.1f of capacity", c.Charge, c.Readout.Capacity)
+	if c.Charge > c.Readout.Cap.Power+1e-6 {
+		t.Errorf("charge %.1f survives in %.1f of capacity", c.Charge, c.Readout.Cap.Power)
 	}
 }
 
@@ -179,8 +182,8 @@ func TestNoBatteriesMeansTheOldBehaviour(t *testing.T) {
 	if c.Readout.Satisfaction != 0 {
 		t.Errorf("satisfaction %.3f with no supply and no bank", c.Readout.Satisfaction)
 	}
-	if c.Readout.Capacity != 0 || c.Readout.Stored != 0 {
-		t.Errorf("capacity %.1f stored %.1f without a battery", c.Readout.Capacity, c.Readout.Stored)
+	if c.Readout.Cap.Power != 0 || c.Readout.Stored != 0 {
+		t.Errorf("capacity %.1f stored %.1f without a battery", c.Readout.Cap.Power, c.Readout.Stored)
 	}
 	if c.Charge != 0 {
 		t.Errorf("charge %.3f without a battery", c.Charge)

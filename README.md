@@ -58,7 +58,7 @@ Suggested reading order:
 
 *A colony in the afternoon. The red dome is the placement preview refusing an
 occupied tile — it is the real habitat mesh with its material stripped, not a
-stand-in. The panel reads left to right as stock, rate and runway; the strip
+stand-in. The panel reads left to right as stock against capacity, then rate; the strip
 under it names the building that fixes the problem rather than restating the
 number.*
 
@@ -162,14 +162,14 @@ start arriving to fill the habitat, and they eat, which is the first problem.
 
 | Structure | Cost | Needs | Does |
 |---|---|---|---|
-| Habitat | 40 iron | solid ground | houses 8 colonists; draws power, water **and food** |
+| Habitat | 40 iron | solid ground | houses 8; stores their food and water; draws power. **Employs nobody** |
 | Solar Array | 25 iron | solid ground | 14 power, **daylight only** |
-| Mine | 30 iron | ferrous dunes or a crystal flat | **iron or crystal, decided by the ground**; draws power and water |
+| Mine | 30 iron | ferrous dunes or a crystal flat | **iron or crystal, decided by the ground**; stockpiles it; draws power and water. **3 staff** |
 | Battery Bank | 50 iron + 20 crystal | anywhere | stores 600 power-seconds |
-| Ice Extractor | 30 iron | an ice sheet | water, quickly |
-| Atmospheric Condenser | 35 iron | anywhere | water, slowly and at a price in power |
-| Greenhouse | 35 iron | solid ground; **lichen yields 1.5x** | food from water and power |
-| Geothermal Plant | 60 iron + 10 crystal | a thermal vent | 26 power day and night, **for water** |
+| Ice Extractor | 30 iron | an ice sheet | water, quickly. **2 staff** |
+| Atmospheric Condenser | 35 iron | anywhere | water, slowly and at a price in power. **1 staff** |
+| Greenhouse | 35 iron | solid ground; **lichen yields 1.5x** | food from water and power; stores some. **2 staff** |
+| Geothermal Plant | 60 iron + 10 crystal | a thermal vent | 26 power day and night, **for water**. **3 staff** |
 
 ### Two ores, one building
 
@@ -353,25 +353,86 @@ WATER            79.8            -0.10/s
 making 0.45   using 0.55   empty in 13:18
 ```
 
-Every bar is a health reading: full is fine, empty is trouble. What fills it
-depends on what the row is, because the rows are not the same kind of thing.
+Every bar is how full the store is. That is the only thing a bar can honestly
+be, and it took two wrong answers to get there.
 
-- **Power** has no stock, so the bar is supply against demand.
-- **Water and food** have a stock, so the bar is the *runway* — how long until
-  it is gone, against a ten-minute horizon. A full green bar means nothing is
-  running out.
-- **Iron and crystal** are spent in lumps rather than drawn, so the bar is what
-  the standing mines are managing against what they could manage fully supplied.
-  A brownout reads as a part-filled bar rather than as a number that is merely
-  smaller than it was.
+- **Power** is the exception: it has no stock, so its bar is supply against
+  demand. The battery bank gets its own figure on the line below.
+- **Water, food, iron and crystal** are drawn against a ceiling. A full bar is
+  amber rather than green, because full is the one state where the thing to do
+  is not "make more".
 
-Water and food used to use the power bar's meaning — production against
-consumption — and it was the wrong picture twice over. A colony holding 157 food
-and losing it slowly drew a quarter-full red bar next to an obviously healthy
-number; a colony with a dry tank and a ledger that happened to balance drew a
-full green one. Neither was wrong about what it measured. Both were answering a
-question nobody asks of a bar, and both restated the two figures already spelled
-out in words underneath. Now the numbers are the flow and the bar is the runway.
+### Everything has a ceiling, and that is a game rule before it is a bar
+
+An uncapped economy pays a player for leaving the game running. Walk away for
+ten minutes, come back to enough iron that the next hour of decisions has
+already been made for you. A ceiling means time alone earns nothing — what
+earns is building somewhere to put it, which is a decision, which is the game.
+
+Capacity comes from the buildings you already place. A habitat carries the
+larder and the tank for the eight people in it; a mine keeps a stockpile at the
+pithead; a battery bank holds power as it always did. So storage is not a
+separate thing to remember, it is a reason the same expansion pays twice — and
+`internal/colony` reports what is going over the side:
+
+```
+IRON          400 / 400          +0.55/s
+[####################################]
+3 mine(s)   full, losing 0.55/s
+```
+
+The rate still reads healthy because the mine really is still running. It is
+being thrown away, which is a different problem from a stopped mine and wants a
+different fix, so it gets its own line rather than a number that merely looks
+smaller.
+
+Bars were production-against-consumption once, which drew a quarter-full red
+bar next to an obviously healthy food figure. Then they were a *runway* — how
+long until empty against a ten-minute horizon — which was true and still not
+what anyone reads a bar as. Neither was wrong about what it measured. Both were
+answering a question nobody asks of a bar. The fix was not a better bar, it was
+giving the thing a maximum.
+
+### Colonists are a resource too
+
+Every structure declares how many people it takes to run. Total jobs against
+total colonists gives one ratio that scales production, exactly as power
+satisfaction and the water ratio already do:
+
+```go
+works := sat * waterRatio * r.Staffing
+```
+
+That closes a loop that was open. A habitat used to be a cost centre — it
+housed people who drank, ate and did nothing, so the only reason to build one
+was that the game kept offering more colonists. Now a mine wants three staff, a
+greenhouse two, a geothermal plant three; staff want somewhere to live; housing
+wants food; food wants a greenhouse; the greenhouse wants staff.
+
+Solar arrays and battery banks employ nobody, deliberately. A panel that needs
+someone standing next to it is not a solar panel.
+
+### And they leave if you stop looking after them
+
+Thirst used to do nothing. A colony could run its tank dry and lose nobody,
+because water reached the colonists only as an input to the greenhouse that fed
+them — so losing water was punished by a slow starvation two steps downstream,
+and a colony with a full larder and an empty tank was fine indefinitely.
+
+Life support is water *and* food now, it is exempt from the grid the way food
+always was (a blackout does not stop anyone being thirsty), and leaving is
+proportional to the shortfall rather than a flat rate past a threshold. A colony
+two percent short should lose someone eventually, not at the same speed as one
+with an empty larder — and the old cliff at 0.999 meant a rounding error could
+empty a colony as fast as a famine could.
+
+The advisory names which half is missing, because the fix for one is not the fix
+for the other:
+
+```
+Colonists leaving - no water
+build an Ice Extractor, or a Condenser anywhere
+```
 
 The other half of that fix was arithmetic. A colony making 0.19 water a second
 and drinking 0.19 a second does not come out at exactly zero in floating point,

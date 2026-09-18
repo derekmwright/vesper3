@@ -86,8 +86,8 @@ func checkReadout(t *testing.T, c *Colony, when string) {
 	}
 
 	// A stock can never hold more than there are cells for it.
-	if c.Charge > r.Capacity+1e-6 {
-		t.Errorf("%s: charge %.3f exceeds capacity %.3f", when, c.Charge, r.Capacity)
+	if c.Charge > r.Cap.Power+1e-6 {
+		t.Errorf("%s: charge %.3f exceeds capacity %.3f", when, c.Charge, r.Cap.Power)
 	}
 
 	// Ratios are ratios.

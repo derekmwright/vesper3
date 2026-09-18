@@ -50,7 +50,7 @@ func (c *Colony) Alerts() []Alert {
 		out = append(out, Alert{
 			Level: lvl,
 			Text:  fmt.Sprintf("%s - %.0f%% power, output reduced", what, r.Satisfaction*100),
-			Fix:   powerFix(short, r.Daylight, r.Capacity),
+			Fix:   powerFix(short, r.Daylight, r.Cap.Power),
 		})
 	}
 
@@ -87,6 +87,48 @@ func (c *Colony) Alerts() []Alert {
 		"build an Ice Extractor, or a Condenser anywhere")...)
 	out = append(out, stockAlert("Food", c.Food, r.Food,
 		"build a Greenhouse - lichen yields 1.5x")...)
+
+	// People leaving is the worst thing that can be happening, so it is said
+	// first and it names the cause. "Colonists are leaving" on its own sends a
+	// player to check five rows; "no water" sends them to build an extractor.
+	if support := min(r.Fed, r.Watered); support < 0.999 && c.Colonists > 0 {
+		cause := "no food"
+		switch {
+		case r.Fed >= 0.999:
+			cause = "no water"
+		case r.Watered < 0.999:
+			cause = "no food or water"
+		}
+		out = append(out, Alert{
+			Level: LevelCritical,
+			Text:  fmt.Sprintf("Colonists leaving - %s", cause),
+			Fix:   lifeFix(r.Fed, r.Watered),
+		})
+	}
+
+	// Labour, before the stock lines below it: a short-staffed colony is
+	// producing less of everything, so it explains numbers a player would
+	// otherwise try to fix one at a time.
+	if r.Jobs > 0 && r.Staffing < 0.999 {
+		short := r.Jobs - c.Colonists
+		lvl := LevelWarn
+		if r.Staffing < 0.5 {
+			lvl = LevelCritical
+		}
+		out = append(out, Alert{
+			Level: lvl,
+			Text:  fmt.Sprintf("Short %.0f staff - everything at %.0f%%", short, r.Staffing*100),
+			Fix:   "build a Habitat, and the food to keep it",
+		})
+	}
+
+	// A full store is not a problem in itself, it is production being thrown
+	// away, and nothing else on the panel says so: the rate keeps reading
+	// healthy because the mine really is still running.
+	out = append(out, spillAlert("Iron", r.Spilled.Iron, "more Mines will not help until there is room")...)
+	out = append(out, spillAlert("Crystal", r.Spilled.Crystal, "more Mines will not help until there is room")...)
+	out = append(out, spillAlert("Water", r.Spilled.Water, "build a Habitat, or stop an Extractor")...)
+	out = append(out, spillAlert("Food", r.Spilled.Food, "build a Habitat to store it, or feed more colonists")...)
 
 	// Housing is not a shortage, it is a ceiling: the colony has stopped
 	// growing and nothing else says so.
@@ -127,6 +169,34 @@ func (c *Colony) Alerts() []Alert {
 	}
 
 	return out
+}
+
+// lifeFix names the building that answers whichever half is short.
+func lifeFix(fed, watered float64) string {
+	switch {
+	case fed < 0.999 && watered < 0.999:
+		return "water and food both: an Extractor and a Greenhouse"
+	case watered < 0.999:
+		return "build an Ice Extractor, or a Condenser anywhere"
+	}
+	return "build a Greenhouse - lichen yields 1.5x"
+}
+
+// spillAlert reports production being lost for want of somewhere to put it.
+//
+// Separate from stockAlert because it is the opposite failure and reads
+// nothing like it: the stock is not falling, the rate is not negative, and
+// every number on the row looks healthy. The only evidence is that some of
+// what was made did not arrive.
+func spillAlert(name string, rate float64, fix string) []Alert {
+	if rate < RateEpsilon {
+		return nil
+	}
+	return []Alert{{
+		Level: LevelInfo,
+		Text:  fmt.Sprintf("%s store full - losing %.2f/s", name, rate),
+		Fix:   fix,
+	}}
 }
 
 // stockAlert reports a store that is draining, escalating as it empties. A

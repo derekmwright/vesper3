@@ -21,6 +21,32 @@ const (
 	StartingFood    = 80
 )
 
+// What the lander itself can hold, before a single building is placed.
+//
+// Every stock has a ceiling, and production past it is lost.
+//
+// The reason that matters most is not the interface. It is that an uncapped
+// economy pays a player for leaving the game running: walk away for ten
+// minutes and come back to enough iron that the next hour of decisions has
+// already been made for you. A ceiling means time alone earns nothing — what
+// earns is building somewhere to put it, which is a decision, which is the
+// game.
+//
+// The interface follows from that rather than the other way round. A bar
+// needs a maximum before "full" can mean anything: without one the only
+// honest things to draw are a rate or a countdown, and both read as "how much
+// have I got" to everyone who has ever seen a bar.
+//
+// These clear the starting stores with room to spare. A colony that began
+// overflowing on its first tick would be teaching the mechanic by punishing
+// something the player did not do.
+const (
+	BaseIronStore    = 400
+	BaseCrystalStore = 120
+	BaseWaterStore   = 140
+	BaseFoodStore    = 140
+)
+
 // Colonist appetite and behaviour, per second.
 const (
 	FoodPerColonist = 0.020
@@ -112,11 +138,31 @@ type Readout struct {
 
 	Housing float64
 
-	// Stored and Capacity are the battery bank. ChargeRate is positive while
-	// charging and negative while drawing down, so the panel can say which is
-	// happening without inferring it.
+	// Jobs is how many colonists the standing structures want, and Staffing
+	// is the fraction of that the colony can actually supply. It scales
+	// production exactly as power satisfaction does.
+	Jobs     float64
+	Staffing float64
+
+	// Life support: the fraction of what the colonists needed that they got.
+	// Both are kept rather than only the worse of them, because "they are
+	// leaving" is a different sentence from "they are leaving because the
+	// tank is empty", and only the second one is worth reading.
+	Fed     float64
+	Watered float64
+
+	// Cap is how much of each stock the colony can hold. Every bar on the
+	// panel is drawn against it.
+	Cap Capacities
+
+	// Spilled is what was produced past the ceiling and lost, per second. It
+	// is the number that turns a full bar from a fact into an instruction.
+	Spilled Capacities
+
+	// Stored and ChargeRate are the battery bank; its ceiling is Cap.Power.
+	// ChargeRate is positive while charging and negative while drawing down,
+	// so the panel can say which is happening without inferring it.
 	Stored     float64
-	Capacity   float64
 	ChargeRate float64
 
 	Iron    Flow
@@ -155,10 +201,21 @@ type Readout struct {
 // in the catalog moves that slowly, so nothing real is being rounded away.
 const RateEpsilon = 1e-4
 
+// MaxCountdown is the longest runway worth reporting, in seconds. Four days
+// and change.
+//
+// Past this a countdown is not information. A drain a hair over RateEpsilon
+// against a full store is a real number - 140 units at 0.0001 a second really
+// is two hundred hours - and it is still nothing a player will act on, or
+// should be invited to worry about. Duration caps its *rendering* at ">99h",
+// which keeps it off the screen but leaves every caller handling a value it
+// cannot use.
+const MaxCountdown = 100 * 3600
+
 // SecondsLeft is how long a stock lasts at a flow's current net rate, or -1
-// when it is not falling. It is the number that turns a negative rate into a
-// decision: a shortfall with an hour of buffer is not the same problem as the
-// same shortfall with ninety seconds.
+// when it is not falling fast enough to matter. It is the number that turns a
+// negative rate into a decision: a shortfall with an hour of buffer is not the
+// same problem as the same shortfall with ninety seconds.
 //
 // A stock that is already at zero returns zero rather than a countdown: there
 // is nothing left to count down.
@@ -170,7 +227,10 @@ func SecondsLeft(stock float64, f Flow) float64 {
 	if stock <= 0 {
 		return 0
 	}
-	return stock / -net
+	if left := stock / -net; left <= MaxCountdown {
+		return left
+	}
+	return -1
 }
 
 // Rate rounds a flow's net movement for display, so a ledger that balances to
@@ -180,6 +240,21 @@ func (f Flow) Rate() float64 {
 		return net
 	}
 	return 0
+}
+
+// Capacities is a figure per stock: how much can be held, or how much was
+// lost for want of somewhere to put it.
+//
+// One struct rather than five fields on Readout twice over, because every
+// consumer wants them together — the panel draws five bars, the advisory
+// strip checks five ceilings — and because a sixth resource should be one line
+// here rather than a hunt through the tick.
+type Capacities struct {
+	Water   float64
+	Food    float64
+	Iron    float64
+	Crystal float64
+	Power   float64
 }
 
 // New returns a colony with starting stores and nothing built.
@@ -378,7 +453,21 @@ func (c *Colony) Tick(dt, daylight float64) {
 		ironOut, crystalOut          float64
 		waterOut, foodOut            float64
 		coolantIn, waterIn, foodIn   float64
+
+		// Water drawn to keep people alive rather than to run a process.
+		// Rationed separately from the industrial draw above, and on the same
+		// terms as food: not scaled by the grid, because a blackout does not
+		// stop anyone being thirsty.
+		lifeWaterIn float64
 	)
+
+	// The lander's own holds, before anything is built on top of them.
+	r.Cap = Capacities{
+		Iron:    BaseIronStore,
+		Crystal: BaseCrystalStore,
+		Water:   BaseWaterStore,
+		Food:    BaseFoodStore,
+	}
 	for _, b := range c.Buildings {
 		s := Of(b.Kind)
 
@@ -393,28 +482,42 @@ func (c *Colony) Tick(dt, daylight float64) {
 
 		r.PowerDemand += s.PowerIn
 		r.Housing += s.Housing
-		r.Capacity += s.PowerStore
+		r.Jobs += s.Jobs
 		r.Counts[b.Kind]++
+
+		r.Cap.Power += s.PowerStore
+		r.Cap.Water += s.WaterStore
+		r.Cap.Food += s.FoodStore
 
 		// A mine's product is the ground's, not the building's.
 		switch b.Ore {
 		case world.OreIron:
 			ironOut += s.MineOut * b.Yield
 			r.IronMines++
+			r.Cap.Iron += s.IronStore
 		case world.OreCrystal:
 			crystalOut += s.MineOut * b.Yield
 			r.CrystalMines++
+			r.Cap.Crystal += s.CrystalStore
 		}
 
 		waterOut += s.WaterOut * b.Yield
 		foodOut += s.FoodOut * b.Yield
 		foodIn += s.FoodIn
 
-		// A generator's water is coolant and comes off the top; everything
-		// else queues behind the grid.
-		if s.PowerOut > 0 {
+		// Three kinds of thirst, rationed at three different points. A
+		// generator's coolant comes off the top, because the grid cannot be
+		// resolved without it. Life support is exempt from the grid entirely.
+		// Everything else queues behind it.
+		//
+		// Housing is what marks life support, rather than naming the habitat:
+		// anything people live in draws water for them.
+		switch {
+		case s.PowerOut > 0:
 			coolantIn += s.WaterIn
-		} else {
+		case s.Housing > 0:
+			lifeWaterIn += s.WaterIn
+		default:
 			waterIn += s.WaterIn
 		}
 	}
@@ -431,9 +534,19 @@ func (c *Colony) Tick(dt, daylight float64) {
 
 	r.PowerSupply = solarOut*daylight + cooledOut*coolant + firmOut
 
-	// Batteries demolished out from under a charged colony cannot leave more
-	// energy stored than there are cells to hold it.
-	c.Charge = min(c.Charge, r.Capacity)
+	// Storage demolished out from under a full colony cannot leave more in a
+	// stock than there is now room for. The battery has always done this; the
+	// other four stocks gained ceilings and needed the same, and a test
+	// demolishing a full habitat is what noticed they had not got it.
+	//
+	// Silent rather than reported as a spill: Spilled is a rate, and this is a
+	// single loss at the instant a building came down, which the player just
+	// asked for and watched happen.
+	c.Charge = min(c.Charge, r.Cap.Power)
+	c.Iron = min(c.Iron, r.Cap.Iron)
+	c.Crystal = min(c.Crystal, r.Cap.Crystal)
+	c.Water = min(c.Water, r.Cap.Water)
+	c.Food = min(c.Food, r.Cap.Food)
 
 	// 2. The grid, in order: generation first, then the battery bank covering
 	// whatever generation missed, and only what is still short becomes a
@@ -448,7 +561,7 @@ func (c *Colony) Tick(dt, daylight float64) {
 		if r.PowerSupply >= r.PowerDemand {
 			// Surplus: charge, up to what the cells can still hold.
 			surplus := r.PowerSupply - r.PowerDemand
-			room := r.Capacity - c.Charge
+			room := r.Cap.Power - c.Charge
 			taken := min(surplus*dt, room)
 			c.Charge += taken
 			r.ChargeRate = taken / dt
@@ -464,9 +577,9 @@ func (c *Colony) Tick(dt, daylight float64) {
 		if sat > 1 {
 			sat = 1
 		}
-	} else if r.Capacity > 0 {
+	} else if r.Cap.Power > 0 {
 		// No demand at all: anything generated goes to the cells.
-		taken := min(r.PowerSupply*dt, r.Capacity-c.Charge)
+		taken := min(r.PowerSupply*dt, r.Cap.Power-c.Charge)
 		c.Charge += taken
 		r.ChargeRate = taken / dt
 	}
@@ -475,7 +588,20 @@ func (c *Colony) Tick(dt, daylight float64) {
 	r.Stored = c.Charge
 	r.Satisfaction = sat
 
-	// 3. What the rest of the colony draws. Scaled by the grid, because a
+	// 3. Labour. One ratio for the colony, the same shape as the grid above
+	// it: a colony short of people runs everything slower rather than picking
+	// which mine to switch off.
+	//
+	// Colonists are the input that cannot be bought. Power is a building away
+	// and water is a building away, but staff arrive only as fast as housing
+	// and food allow, which is what makes expanding a decision rather than a
+	// formality.
+	r.Staffing = 1
+	if r.Jobs > 0 {
+		r.Staffing = min(c.Colonists/r.Jobs, 1)
+	}
+
+	// 4. What the rest of the colony draws. Scaled by the grid, because a
 	// mine that is not turning is not pumping either — and because a colony
 	// that has gone dark should not empty its tank while it is down.
 	waterRatio := float64(1)
@@ -486,7 +612,7 @@ func (c *Colony) Tick(dt, daylight float64) {
 		r.Water.Consumed += got / dt
 	}
 
-	// 4. Production. Everything below records what actually happened, divided
+	// 5. Production. Everything below records what actually happened, divided
 	// back out by dt into a per-second rate. Recording the achieved amount
 	// rather than the intended one is the whole point: a greenhouse that ran
 	// dry has to show as producing nothing, not as producing what it would
@@ -494,22 +620,32 @@ func (c *Colony) Tick(dt, daylight float64) {
 	//
 	// Ore and food need power and water both. The extractors need only power,
 	// since what they draw on is the ice or the air rather than the tank.
-	works := sat * waterRatio
+	works := sat * waterRatio * r.Staffing
 	mined, cut := ironOut*works, crystalOut*works
-	drawn := waterOut * sat
+	drawn := waterOut * sat * r.Staffing
 	grown := foodOut * works
 
-	c.Iron += mined * dt
-	c.Crystal += cut * dt
-	c.Water += drawn * dt
-	c.Food += grown * dt
+	// Into the stores, and no further. What will not fit is lost, and saying
+	// how much is what makes a full bar an instruction rather than a fact.
+	c.Iron, r.Spilled.Iron = fill(c.Iron, mined*dt, r.Cap.Iron)
+	c.Crystal, r.Spilled.Crystal = fill(c.Crystal, cut*dt, r.Cap.Crystal)
+	c.Water, r.Spilled.Water = fill(c.Water, drawn*dt, r.Cap.Water)
+	c.Food, r.Spilled.Food = fill(c.Food, grown*dt, r.Cap.Food)
 
+	r.Spilled.Iron /= dt
+	r.Spilled.Crystal /= dt
+	r.Spilled.Water /= dt
+	r.Spilled.Food /= dt
+
+	// The rate recorded is what was made, not what was kept: a mine at a full
+	// stockpile is still running, and the panel says so on the spill line
+	// rather than by pretending the mine stopped.
 	r.Iron.Produced = mined
 	r.Crystal.Produced = cut
 	r.Water.Produced = drawn
 	r.Food.Produced = grown
 
-	// 5. Habitats feed the people living in them. The draw scales with
+	// 6. Habitats feed the people living in them. The draw scales with
 	// occupancy so a habitat raised ahead of the colonists who will fill it
 	// does not eat on their behalf — and because the colony-wide ratio makes
 	// the total come out at exactly FoodPerColonist a head.
@@ -519,19 +655,34 @@ func (c *Colony) Tick(dt, daylight float64) {
 	if r.Housing > 0 {
 		occupancy = min(c.Colonists/r.Housing, 1)
 	}
-	fed := float64(1)
+	r.Fed, r.Watered = 1, 1
 	if want := foodIn * occupancy * dt; want > 0 {
 		got := min(want, c.Food)
 		c.Food -= got
-		fed = got / want
+		r.Fed = got / want
 		r.Food.Consumed = got / dt
 	}
+	if want := lifeWaterIn * occupancy * dt; want > 0 {
+		got := min(want, c.Water)
+		c.Water -= got
+		r.Watered = got / want
+		r.Water.Consumed += got / dt
+	}
 
-	// Colonists arrive to fill housing while there is food, and leave when
-	// there is not.
+	// Colonists arrive to fill housing while they are looked after, and leave
+	// when they are not. Thirst counts as much as hunger: before this a
+	// colony could run its tank dry and lose nobody, because water reached
+	// the colonists only as an input to the greenhouse that fed them.
+	//
+	// Leaving is proportional to the shortfall rather than a flat rate past a
+	// threshold. A colony 2% short of food should lose someone eventually,
+	// not at the same speed as one with an empty larder — and the old cliff
+	// at 0.999 meant a rounding error could empty a colony as fast as a
+	// famine.
+	support := min(r.Fed, r.Watered)
 	switch {
-	case fed < 0.999:
-		c.Colonists -= StarveRate * dt
+	case support < 1:
+		c.Colonists -= StarveRate * (1 - support) * dt
 	case c.Colonists < r.Housing:
 		c.Colonists = min(c.Colonists+GrowthRate*dt, r.Housing)
 	case c.Colonists > r.Housing:
@@ -548,6 +699,28 @@ func (c *Colony) Tick(dt, daylight float64) {
 	c.Food = max(c.Food, 0)
 
 	c.Readout = r
+}
+
+// fill adds to a stock up to its ceiling and reports what would not fit.
+//
+// A ceiling of zero is treated as no ceiling rather than as a stock that can
+// hold nothing, so a Readout built by hand in a test does not silently throw
+// away everything it produces.
+func fill(held, added, capacity float64) (now, spilled float64) {
+	if added <= 0 {
+		return held, 0
+	}
+	if capacity <= 0 {
+		return held + added, 0
+	}
+	room := capacity - held
+	if room <= 0 {
+		return held, added
+	}
+	if added <= room {
+		return held + added, 0
+	}
+	return capacity, added - room
 }
 
 // Reindex rebuilds the tile lookup. Call it after loading a colony from a

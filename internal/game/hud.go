@@ -551,6 +551,43 @@ func (h *hud) runwayBar(x, y, w, ht float32, left float64) {
 	h.quad(x, y, max32(min32(frac, 1), 0.015)*w, ht, runwayColor(left))
 }
 
+// storeBar is the gauge for a stock with a ceiling: how full it is.
+//
+// This replaced a runway bar, which replaced a supply-against-demand bar, and
+// the second change is the one that made the first unnecessary. A bar needs a
+// maximum before "full" means anything — without one the only honest things to
+// draw were a rate or a countdown, and both of those read as "how much have I
+// got" to anyone who has ever seen a bar. Now every stock has a ceiling, so
+// the bar can just be the obvious thing.
+//
+// left is the countdown from SecondsLeft, or negative when the stock is not
+// falling. It only colours the bar: a store that is half full and emptying
+// fast should not look like one that is half full and filling.
+func (h *hud) storeBar(x, y, w, ht float32, stock, capacity float64, left float64) {
+	h.quad(x, y, w, ht, colBarBack)
+	if capacity <= 0 {
+		return
+	}
+
+	frac := float32(min(stock/capacity, 1))
+
+	col := colGood
+	switch {
+	case left >= 0 && left <= 90:
+		col = colCritical
+	case left >= 0 && left <= 300:
+		col = colWarn
+	case frac >= 0.999:
+		// Full is worth its own colour: it is the one state where the thing
+		// to do is not "make more".
+		col = colAccent
+	}
+
+	if frac > 0 {
+		h.quad(x, y, max32(frac, 0.015)*w, ht, col)
+	}
+}
+
 // runwayColor matches the countdown's own thresholds, so the bar and the text
 // under it cannot disagree about how bad it is.
 func runwayColor(left float64) [3]float32 {
