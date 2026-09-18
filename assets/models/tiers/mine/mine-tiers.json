@@ -1,0 +1,33 @@
+{
+  "building": "mine",
+  "tiers": [
+    {
+      "tier": 1,
+      "name": "Shaft mine",
+      "runtime": "assets/models/3-mine.glb",
+      "visuals": "Existing mine, unchanged"
+    },
+    {
+      "tier": 2,
+      "name": "Powered mine",
+      "runtime": "assets/models/tiers/mine/tier2/3-mine.glb",
+      "source": "assets/models-src/tiers/mine/tier2/3-mine.glb",
+      "visuals": "Powered spindle, hoist motor and canopy, receiving hopper, conveyor and control cabinet"
+    },
+    {
+      "tier": 3,
+      "name": "Automated mine",
+      "runtime": "assets/models/tiers/mine/tier3/3-mine.glb",
+      "source": "assets/models-src/tiers/mine/tier3/3-mine.glb",
+      "visuals": "Extended hoist head, twin ore silos, feed pipes and guided drill carriage"
+    }
+  ],
+  "up_axis": "Y",
+  "origin": "ground-centered",
+  "radius": 0.8,
+  "game_model_scale": 0.88,
+  "runtime_lamp_material": "Amber runtime lamp",
+  "runtime_texture_max_dimension": 512,
+  "production_and_storage": "Not configured by these assets; game-side economy tuning required",
+  "animations": "Static geometry; no animation clips included"
+}

@@ -232,7 +232,7 @@ var catalog = [kindCount]Spec{
 	},
 	Battery: {
 		Name: "Battery Bank",
-		Desc: "Stores 600 power-seconds; charges on surplus, covers the night",
+		Desc: "Stores 1500 power-seconds; charges on surplus, covers the night",
 
 		// The always-available answer to darkness, priced against the
 		// location-gated one: a geothermal plant is 60 ore and needs a vent,
@@ -248,8 +248,19 @@ var catalog = [kindCount]Spec{
 		// first".
 		CrystalCost: 20,
 		Color:       [3]float32{0.34, 0.46, 0.40},
-		PowerStore:  600,
-		Needs:       NeedsNothing,
+		// 1500, not 600. A night is 120 seconds, so 600 carried a five-power
+		// draw across it — while one geothermal plant covers twenty-six all
+		// night for 60 iron and 10 crystal. Crossing a 25-power night on the
+		// old number took five banks: 250 iron and 100 crystal, against a
+		// crystal ceiling of 120. The "always-available answer to darkness"
+		// was four times the price of the location-gated one and could not be
+		// stockpiled for.
+		//
+		// At 1500 one bank carries 12.5 power through the night and two carry
+		// 25 for 100 iron and 40 crystal. Geothermal is still cheaper, which
+		// is right — it is the one that needs a vent.
+		PowerStore: 1500,
+		Needs:      NeedsNothing,
 	},
 	Condenser: {
 		Name: "Atmospheric Condenser",

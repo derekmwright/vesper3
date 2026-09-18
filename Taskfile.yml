@@ -137,6 +137,16 @@ tasks:
       - go run ./cmd/terrainatlas -src assets/terrain-src -out assets/terrain-detail.png
       - go test ./internal/meshgen/ -run TerrainAtlas -count 1
 
+  balance:
+    desc: Print the economy's derived numbers and survival simulations
+    cmds:
+      # The catalog states rates and costs; almost nothing a designer wants to
+      # know is in it directly. This works out the ratios between buildings,
+      # then runs plausible build orders through whole day/night cycles with
+      # no player input, which is the check arithmetic cannot make: a colony
+      # can be positive on every resource in isolation and still spiral.
+      - go run ./cmd/balance
+
   models:
     desc: Bake and verify the models (alias for models:bake)
     cmds:

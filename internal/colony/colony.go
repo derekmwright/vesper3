@@ -601,11 +601,20 @@ func (c *Colony) Tick(dt, daylight float64) {
 		r.Staffing = min(c.Colonists/r.Jobs, 1)
 	}
 
-	// 4. What the rest of the colony draws. Scaled by the grid, because a
-	// mine that is not turning is not pumping either — and because a colony
-	// that has gone dark should not empty its tank while it is down.
+	// 4. What the rest of the colony draws. Scaled by the grid and by the
+	// staff, because a mine that is not turning is not pumping either — and
+	// because a colony that has gone dark, or emptied out, should not drain
+	// its tank while it is down.
+	//
+	// The staffing half was missing and it made losing people unrecoverable.
+	// Production was scaled by staff and consumption was not, so a greenhouse
+	// nobody worked still drank a quarter of a unit a second and grew nothing.
+	// A colony that dipped below its own water supply lost colonists, which
+	// cost it the extractors that would have refilled the tank, while the
+	// greenhouses kept drinking — and there was no floor to it. Six cycles
+	// from a working colony to nobody left.
 	waterRatio := float64(1)
-	if want := waterIn * sat * dt; want > 0 {
+	if want := waterIn * sat * r.Staffing * dt; want > 0 {
 		got := min(want, c.Water)
 		c.Water -= got
 		waterRatio = got / want
