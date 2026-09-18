@@ -6,6 +6,7 @@ import (
 	"github.com/go-gl/mathgl/mgl32"
 
 	glyph "github.com/derekmwright/glyphengine"
+	"github.com/derekmwright/glyphengine/renderer"
 	"github.com/derekmwright/vesper3/internal/artcheck"
 	"github.com/derekmwright/vesper3/internal/colony"
 )
@@ -158,8 +159,8 @@ func (g *Game) updateLights(e *glyph.Engine, sunElevation float32) {
 		})
 	}
 
-	// The engine takes at most renderer.MaxPointLights and truncates the rest,
-	// so choose which ones survive rather than letting slice order decide: the
+	// The engine takes at most renderer.MaxLights and truncates the rest, so
+	// choose which ones survive rather than letting slice order decide: the
 	// nearest are the ones whose light the player can actually see.
 	if len(g.lights.scratch) > maxLamps {
 		sort.Slice(g.lights.scratch, func(i, j int) bool {
@@ -169,15 +170,29 @@ func (g *Game) updateLights(e *glyph.Engine, sunElevation float32) {
 	}
 
 	g.lights.points = g.lights.points[:0]
+	//
+	// That ceiling was 32 when this was written, which a mid-game colony hit
+	// and a late one sailed past - so this was the difference between a lit
+	// colony and a lit corner of one. Clustered lighting raised it to 1024,
+	// which no colony this game can build will reach, so the sort now costs
+	// nothing and does nothing. It stays because "nothing" is a fact about
+	// today's budget rather than a rule: the engine is free to lower it again,
+	// and dropping the far lights is still the right answer if it does.
 	for _, c := range g.lights.scratch {
 		g.lights.points = append(g.lights.points, c.light)
 	}
 	e.Scene.SetPointLights(g.lights.points)
 }
 
-// maxLamps matches renderer.MaxPointLights. Kept as our own constant so the
-// nearest-first selection above is obviously the reason for the cap.
-const maxLamps = 32
+// maxLamps is the engine's light budget, read from the engine rather than
+// copied from it.
+//
+// It was the literal 32 for as long as that was true, and stayed 32 for a
+// while after it was not: the engine went to 1024 and this game went on
+// rationing lamps to a ceiling three per cent of the real one, with nothing
+// to notice because a hardcoded number cannot go stale loudly. Referencing
+// the constant is what makes the next change to it arrive here for free.
+const maxLamps = renderer.MaxLights
 
 type lampCandidate struct {
 	light glyph.PointLight
