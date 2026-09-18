@@ -2,6 +2,7 @@ package world
 
 import (
 	"math"
+	"sort"
 
 	"github.com/derekmwright/vesper3/internal/hex"
 )
@@ -77,6 +78,69 @@ func Generate(m *Map) {
 			t.Elevation = int8(elev)
 			t.Terrain = classify(elev, moisture, vent)
 		}
+	}
+
+	ensureIce(m)
+}
+
+// MinIceTiles is how much ice a map is guaranteed, however its noise came out.
+//
+// Ice is the only ground an Ice Extractor can stand on, and water is the
+// resource a colony fails on first. Leaving that to chance meant leaving
+// whether the map was playable to chance.
+const MinIceTiles = 10
+
+// ensureIce guarantees a map has somewhere to get water, by freezing its
+// highest ground until there is enough.
+//
+// classify makes ice above MaxElevation-2, which is a cliff rather than a
+// gradient: a map whose tallest peak reaches 11 has no ice at all, and one
+// with a plateau at 12 has a hundred tiles of it. Measured over forty seeds,
+// *eighteen had none* and twenty-three had none within reach of the landing
+// site. The aggregate distribution test passed the whole time, because a few
+// ice-rich maps carried the average for all the maps that had nothing.
+//
+// The fix is to state the intent instead of hoping for it: ice is at altitude,
+// so the highest ground is ice. Deterministic from the seed like everything
+// else here, and it takes that ground from basalt, which is scenery.
+func ensureIce(m *Map) {
+	type tile struct {
+		idx  int
+		elev int8
+	}
+	var candidates []tile
+	ice := 0
+
+	for i := range m.Tiles {
+		switch m.Tiles[i].Terrain {
+		case Ice:
+			ice++
+		case Sea, Vent:
+			// A vent is the only other thing worth keeping at altitude, and
+			// the sea is not ground.
+		default:
+			candidates = append(candidates, tile{i, m.Tiles[i].Elevation})
+		}
+	}
+	if ice >= MinIceTiles {
+		return
+	}
+
+	// Highest first, and by index where the height ties, so the result does
+	// not depend on map iteration order.
+	sort.Slice(candidates, func(a, b int) bool {
+		if candidates[a].elev != candidates[b].elev {
+			return candidates[a].elev > candidates[b].elev
+		}
+		return candidates[a].idx < candidates[b].idx
+	})
+
+	for _, c := range candidates {
+		if ice >= MinIceTiles {
+			return
+		}
+		m.Tiles[c.idx].Terrain = Ice
+		ice++
 	}
 }
 

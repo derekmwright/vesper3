@@ -24,6 +24,7 @@ func TestTerrainDistribution(t *testing.T) {
 	land := 0
 	ventedMaps := 0
 	crystalMaps := 0
+	iceMaps := 0
 
 	for seed := int64(1); seed <= seeds; seed++ {
 		m, err := NewMap(size, size, seed)
@@ -32,7 +33,7 @@ func TestTerrainDistribution(t *testing.T) {
 		}
 		Generate(m)
 
-		vents, crystals := 0, 0
+		vents, crystals, ices := 0, 0, 0
 		for _, tile := range m.Tiles {
 			counts[tile.Terrain]++
 			if tile.Terrain != Sea {
@@ -43,6 +44,8 @@ func TestTerrainDistribution(t *testing.T) {
 				vents++
 			case Crystal:
 				crystals++
+			case Ice:
+				ices++
 			}
 		}
 		if vents > 0 {
@@ -51,6 +54,9 @@ func TestTerrainDistribution(t *testing.T) {
 		if crystals > 0 {
 			crystalMaps++
 		}
+		if ices > 0 {
+			iceMaps++
+		}
 	}
 
 	// Geothermal is the only night-proof power source, so a map without a
@@ -58,6 +64,20 @@ func TestTerrainDistribution(t *testing.T) {
 	// majority are not.
 	if ventedMaps < seeds*3/4 {
 		t.Errorf("only %d of %d maps have a thermal vent", ventedMaps, seeds)
+	}
+
+	// Ice is the same requirement and was the harder failure. Every map has
+	// to have some, because it is the only ground an Ice Extractor can stand
+	// on and water is what a colony runs out of first.
+	//
+	// The aggregate bound below passed for a long time while this did not:
+	// measured over forty seeds, eighteen maps had no ice at all and
+	// twenty-three had none within reach of the landing site. A handful of
+	// ice-rich maps carried the average for all the ones with nothing, which
+	// is exactly the failure a per-map check catches and a distribution does
+	// not.
+	if iceMaps != seeds {
+		t.Errorf("only %d of %d maps have ice; an extractor needs somewhere to stand", iceMaps, seeds)
 	}
 
 	// Crystal is the harder requirement: it is the only source of the ore
