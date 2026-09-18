@@ -693,6 +693,62 @@ go run ./cmd/iconatlas -src assets/icons-src -out assets/icons.png
 Icons are optional at runtime. A build whose atlas fails to load logs it and
 falls back to text-only slots rather than refusing to start.
 
+## Texturing the hexagons
+
+```
+assets/terrain-src/*.png    four greyscale detail patterns, 480x480
+assets/terrain-detail.png   the atlas the game embeds
+```
+
+The tiles are flat-shaded colour, and the colour is the biome. The detail atlas
+adds surface without touching that, because the lit shader multiplies:
+
+```glsl
+vec3 baseColor = fragColor * texSample.rgb;
+```
+
+So every texel is a **multiplier**, and white means "leave this tile the colour
+it already is". The patterns sit between 0.86 and 1.0 — which is what "lightly
+textured" turns out to mean in numbers. A coloured pattern here would give
+colour times colour: muddy, and darker than either. `cmd/terrainatlas` refuses
+a source that is too dark to be a multiplier.
+
+Which pattern a tile gets is **not** decided by its terrain. It is a hash of
+the tile's position into one of four patterns and one of six rotations, so
+neighbouring tiles of the same biome do not repeat. Six rotations because those
+are the ones that map a hexagon onto itself; any other angle would show as a
+pattern sitting crooked on its tile. The hash is stable, so terraforming a tile
+or reloading a save does not reshuffle the map's own texture.
+
+Walls and submerged caps sample a white corner deliberately — detail belongs on
+the surfaces the light falls on, and a cliff face that took it would read as
+dirt.
+
+### The gutter
+
+A cell is 512 pixels holding a 480-pixel pattern, leaving a 16-pixel white
+margin. That margin is the whole reason the atlas works: at mip levels above
+zero a sample near a cell edge averages in whatever is beyond it, and without
+the margin that is the neighbouring pattern. It shows up as a faint seam around
+every hexagon — visible only at distance, which is exactly where this camera
+sits.
+
+It is also the easiest thing in the project to destroy by accident. Rebaking
+with a packer that scales each source *to fill* its cell produces a file that
+is the right size, loads perfectly, and is wrong. `TestEveryCellKeepsItsWhiteGutter`
+measures the bounding box of everything that is not white and fails if it
+reaches into the margin.
+
+That test had to be written twice. The first version probed the margin for
+white and passed on a deliberately broken atlas — these patterns are round
+blobs that fade to white at their own edges, so a stretched cell *still* reads
+white in its corners. Probing could not tell. The extent is the thing that
+actually has to fit.
+
+```
+task terrain      # repack and check
+```
+
 ## Structure models
 
 ```

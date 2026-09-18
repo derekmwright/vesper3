@@ -41,7 +41,7 @@ import (
 // binary. That is the intended trade: a missing asset is a loud failure at
 // startup, a silently embedded one is a download nobody notices.
 //
-//go:embed assets/icons.png assets/panel.png assets/logo.png assets/terrain-detail.png
+//go:embed assets/icons.png assets/panel.png assets/logo.png
 //go:embed assets/fonts
 //go:embed assets/models/*.glb
 var assetsFS embed.FS

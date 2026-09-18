@@ -118,16 +118,7 @@ func BuildChunk(m *world.Map, id ChunkID, verts []renderer.Vertex, idx []uint16)
 			base := tile.Terrain.Info().Color
 			base = scaleColor(base, 1+jitter(col, row)*jitterAmount)
 
-			capStart := len(verts)
 			verts, idx = appendCap(verts, idx, cx, cz, top, base, corners)
-			variant, rotation := terrainDetailChoice(m.Seed, col, row)
-			for i := capStart; i < len(verts); i++ {
-				if tile.Terrain == world.Sea {
-					verts[i].UV = terrainNeutralUV
-				} else {
-					verts[i].UV = terrainDetailUV(verts[i].UV, variant, rotation)
-				}
-			}
 			verts, idx = appendWalls(verts, idx, m, a, cx, cz, top, base, corners)
 		}
 	}
@@ -201,10 +192,10 @@ func appendWalls(verts []renderer.Vertex, idx []uint16, m *world.Map, a hex.Axia
 
 		v := uint16(len(verts))
 		verts = append(verts,
-			renderer.Vertex{Pos: [3]float32{ax, top, az}, Color: wall, Normal: n, UV: terrainNeutralUV},
-			renderer.Vertex{Pos: [3]float32{ax, below, az}, Color: foot, Normal: n, UV: terrainNeutralUV},
-			renderer.Vertex{Pos: [3]float32{bx, below, bz}, Color: foot, Normal: n, UV: terrainNeutralUV},
-			renderer.Vertex{Pos: [3]float32{bx, top, bz}, Color: wall, Normal: n, UV: terrainNeutralUV},
+			renderer.Vertex{Pos: [3]float32{ax, top, az}, Color: wall, Normal: n, UV: [2]float32{0, 0}},
+			renderer.Vertex{Pos: [3]float32{ax, below, az}, Color: foot, Normal: n, UV: [2]float32{0, 1}},
+			renderer.Vertex{Pos: [3]float32{bx, below, bz}, Color: foot, Normal: n, UV: [2]float32{1, 1}},
+			renderer.Vertex{Pos: [3]float32{bx, top, bz}, Color: wall, Normal: n, UV: [2]float32{1, 0}},
 		)
 		// aTop, aFoot, bFoot then aTop, bFoot, bTop: both wind opposite the
 		// outward normal.
@@ -236,31 +227,4 @@ func jitter(col, row int) float32 {
 	h *= 0x2545F491
 	h ^= h >> 13
 	return float32(int32(h%2001)-1000) / 1000
-}
-
-// The atlas contains four 512-pixel cells in a 2x2 grid, with a 16-pixel white
-// gutter around each 480-pixel map. Walls and submerged caps sample the white
-// corner so only the top surfaces receive detail. The PNG is neutral grayscale:
-// the terrain's vertex colors remain its biome identity.
-var terrainNeutralUV = [2]float32{.5 / 1024, .5 / 1024}
-
-func terrainDetailChoice(seed int64, col, row int) (variant, rotation int) {
-	// Stable across chunk rebuilds, terraforming and save/load; independent of
-	// iteration order and the simulation's random-number stream.
-	h := uint64(seed) ^ uint64(uint32(col))*0x9e3779b97f4a7c15 ^ uint64(uint32(row))*0xbf58476d1ce4e5b9
-	h = (h ^ (h >> 30)) * 0xbf58476d1ce4e5b9
-	h = (h ^ (h >> 27)) * 0x94d049bb133111eb
-	h ^= h >> 31
-	return int(h & 3), int((h >> 8) % 6)
-}
-
-func terrainDetailUV(uv [2]float32, variant, rotation int) [2]float32 {
-	// Six rotations preserve the hexagon. Pixel-center bounds plus the gutter
-	// prevent neighboring atlas entries leaking into close and mid-range caps.
-	cosine := [6]float32{1, .5, -.5, -1, -.5, .5}
-	sine := [6]float32{0, .8660254, .8660254, 0, -.8660254, -.8660254}
-	x, y := uv[0]-.5, uv[1]-.5
-	u := .5 + x*cosine[rotation] - y*sine[rotation]
-	v := .5 + x*sine[rotation] + y*cosine[rotation]
-	return [2]float32{(float32(variant%2)*512 + 16.5 + u*479) / 1024, (float32(variant/2)*512 + 16.5 + v*479) / 1024}
 }

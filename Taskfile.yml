@@ -124,6 +124,19 @@ tasks:
     cmds:
       - go run ./cmd/iconatlas -src assets/icons-src -out assets/icons.png
 
+  terrain:
+    desc: Repack assets/terrain-src into the hexagon detail atlas
+    sources: ['assets/terrain-src/*.png']
+    generates: ['assets/terrain-detail.png']
+    cmds:
+      # The 16-pixel white margin inside each cell is load-bearing, not spare
+      # room: without it the patterns bleed into each other under mipmapping
+      # and every hexagon grows a seam. terrainatlas composes rather than
+      # scales to fit, and a test in internal/meshgen measures the result
+      # against the numbers the mesher reads with.
+      - go run ./cmd/terrainatlas -src assets/terrain-src -out assets/terrain-detail.png
+      - go test ./internal/meshgen/ -run TerrainAtlas -count 1
+
   models:
     desc: Bake and verify the models (alias for models:bake)
     cmds:

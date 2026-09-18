@@ -40,16 +40,6 @@ const oceanMargin = maxDistance * 2.2
 // allocation on every click of a key the player may well hold down.
 func (g *Game) initTerrain(e *glyph.Engine) error {
 	r := e.Renderer()
-	// One shared atlas keeps the existing one-draw-per-chunk layout. Missing
-	// optional art preserves the original vertex-colored terrain.
-	var detail *renderer.Texture
-	if g.cfg.Assets != nil {
-		var err error
-		detail, err = r.LoadTexture(g.cfg.Assets, "assets/terrain-detail.png")
-		if err != nil {
-			log.Printf("terrain detail unavailable (%v); using plain terrain", err)
-		}
-	}
 	maxV, maxI := meshgen.ChunkCapacity()
 
 	nx, ny := meshgen.ChunkGrid(g.Map)
@@ -70,9 +60,6 @@ func (g *Game) initTerrain(e *glyph.Engine) error {
 				Scale:    mgl32.Vec3{1, 1, 1},
 			})
 			e.C.MeshRef.Set(ent, &glyph.MeshRef{Mesh: mesh, Roughness: 0.92})
-			if detail != nil {
-				e.C.MaterialRef.Set(ent, &glyph.MaterialRef{Texture: detail})
-			}
 			// Terrain is world geometry that does not move, and tagging it so
 			// keeps it out of the per-tick spatial grid rebuild.
 			e.C.Static.Set(ent, &glyph.Static{})
