@@ -311,6 +311,11 @@ func (g *Game) initCamera() {
 func (g *Game) Update(e *glyph.Engine, dt float32) {
 	g.elapsed += dt
 
+	// Recorded before anything can return early, so a frame spent on the
+	// menu or the title card counts like any other. A hitch while paused is
+	// still a hitch.
+	g.ui.frames.add(dt)
+
 	// The title card owns the frame while it is up: no input reaches the
 	// camera or the world behind it.
 	g.splash.up = g.splashActive(e, dt)

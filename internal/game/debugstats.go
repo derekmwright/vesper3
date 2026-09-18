@@ -26,6 +26,46 @@ import (
 // and slow enough to cost nothing.
 const runtimeSampleEvery = 0.5
 
+// frameWindow is how many frames the tail figures look back over: four
+// seconds at sixty, which is long enough to catch a hitch and short enough
+// that the number goes back to normal after one rather than carrying it for a
+// minute.
+const frameWindow = 240
+
+// frames records recent frame times so the readout can report the tail.
+//
+// FPS is a mean, and a mean is the one statistic that cannot see a stutter: a
+// single 40ms frame in a second of 16ms frames still reads as 59 FPS, and 40ms
+// is exactly what a player feels. The worst frame and the 99th percentile are
+// what a chunk rebuild, a model swap or a GC pause actually show up in.
+type frames struct {
+	ring [frameWindow]float32
+	n    int
+
+	worst, p99 float32
+	scratch    []float32
+}
+
+func (f *frames) add(dt float32) {
+	f.ring[f.n%frameWindow] = dt
+	f.n++
+}
+
+// summarise recomputes the tail figures. Called on the same schedule as the
+// memory sample rather than per frame: sorting is cheap but pointless at a
+// rate nobody can read.
+func (f *frames) summarise() {
+	n := min(f.n, frameWindow)
+	if n == 0 {
+		return
+	}
+	f.scratch = append(f.scratch[:0], f.ring[:n]...)
+	sort.Slice(f.scratch, func(i, j int) bool { return f.scratch[i] < f.scratch[j] })
+
+	f.worst = f.scratch[n-1]
+	f.p99 = f.scratch[(n*99)/100]
+}
+
 // runtimeStats is the last sample taken, held so every frame between samples
 // can draw the same numbers rather than no numbers.
 type runtimeStats struct {
@@ -46,6 +86,19 @@ func (r *runtimeStats) sample(now float32) {
 	r.at, r.taken = now, true
 }
 
+// lightDebugName labels the engine's light debug modes for the readout and the
+// status line.
+func lightDebugName(m glyph.LightDebugMode) string {
+	switch m {
+	case glyph.LightDebugHeatmap:
+		return "cluster heatmap"
+	case glyph.LightDebugBruteForce:
+		return "brute force"
+	default:
+		return "normal"
+	}
+}
+
 // mib formats bytes as mebibytes, which is the unit every other tool reports a
 // Go heap in.
 func mib(b uint64) float64 { return float64(b) / (1 << 20) }
@@ -64,7 +117,11 @@ func (g *Game) runtimeLines(e *glyph.Engine) []string {
 		lastPause = float64(m.PauseNs[(m.NumGC+255)%256]) / 1e6
 	}
 
+	g.ui.frames.summarise()
+
 	lines := []string{
+		fmt.Sprintf("frame  %.1fms worst   %.1fms p99   over the last %d frames",
+			g.ui.frames.worst*1000, g.ui.frames.p99*1000, min(g.ui.frames.n, frameWindow)),
 		fmt.Sprintf("heap   %6.1fM live  %6.1fM from os   stack %5.2fM   gc %d, last %.2fms",
 			mib(m.HeapAlloc), mib(m.HeapSys), mib(m.StackInuse), m.NumGC, lastPause),
 		fmt.Sprintf("proc   %6.1fM total from os   goroutines %d   next gc at %.1fM",
@@ -80,6 +137,10 @@ func (g *Game) runtimeLines(e *glyph.Engine) []string {
 		entities = e.Scene.World().EntityCount()
 	}
 	lines = append(lines, fmt.Sprintf("scene  %d entities   frame %d", entities, e.FrameCount()))
+
+	if g.ui.lightDebug != glyph.LightDebugOff {
+		lines = append(lines, fmt.Sprintf("light  view: %s   (F4 cycles)", lightDebugName(g.ui.lightDebug)))
+	}
 
 	if gpu := e.MeanGPUTimings(); gpu.Valid {
 		lines = append(lines, fmt.Sprintf("gpu    %.2fms total%s", gpu.Total, topPasses(gpu, 4)))

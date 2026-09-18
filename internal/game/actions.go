@@ -124,6 +124,21 @@ func (g *Game) handleKeys(e *glyph.Engine) {
 		return
 	}
 
+	// F4 cycles the engine's view of its own light clustering: normal, a
+	// heatmap of how many lights each froxel holds, then the brute-force
+	// reference path.
+	//
+	// The heatmap is the one worth having. Lamp range is what decides how many
+	// cells a light lands in, and tuning it by looking at the colony tells you
+	// what it looks like but not what it costs - this shows the cost directly,
+	// and the brute-force mode beside it is the check that the cheap path and
+	// the reference path still agree.
+	if in.KeyPressed(input.KeyF4) {
+		g.ui.lightDebug = (g.ui.lightDebug + 1) % 3
+		e.SetLightDebugMode(g.ui.lightDebug)
+		g.toolChanged("Light view: %s", lightDebugName(g.ui.lightDebug))
+	}
+
 	if in.KeyPressed(input.KeyF3) {
 		g.ui.showDebug = !g.ui.showDebug
 	}

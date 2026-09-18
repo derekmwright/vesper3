@@ -215,6 +215,15 @@ type uiState struct {
 	// because taking one stops the world; see debugstats.go.
 	runtime runtimeStats
 
+	// frames is the rolling frame-time window behind the tail figures; see
+	// debugstats.go for why a mean FPS is not enough.
+	frames frames
+
+	// lightDebug is the engine's clustered-lighting view: off, a heatmap of
+	// per-cell light counts, or the brute-force reference path. Cycled with
+	// F4; see actions.go.
+	lightDebug glyph.LightDebugMode
+
 	// confirm is the open question, if there is one. Demolition is the only
 	// irreversible action in the game, so it is the only one that asks.
 	confirm *confirmPrompt
