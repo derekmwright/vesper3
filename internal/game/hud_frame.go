@@ -67,7 +67,12 @@ func (g *Game) drawHUD(e *glyph.Engine) {
 	// The menu goes over everything, including the prompt: while it is open it
 	// is the only thing listening, so it had better be the only thing that
 	// looks like it is.
-	if g.screen != screenPlaying && g.menu != nil {
+	//
+	// Except the title card, which outranks it. The game opens on screenMenu
+	// with the main menu already built, so for the length of the splash this
+	// drew New Colony, Load Colony and Exit straight over the logo - a menu
+	// that was not listening yet, on top of a card that was.
+	if g.menuVisible() {
 		g.menu.draw(h, dw, dh)
 	}
 

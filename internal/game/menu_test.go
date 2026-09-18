@@ -79,7 +79,19 @@ func TestMenuWillNotTakeADisabledItem(t *testing.T) {
 // used to draw them and to decide what the pointer is over. If those disagreed
 // a player would click one row and get another.
 func TestMenuRowsTileThePanelWithoutOverlapping(t *testing.T) {
-	m := testMenu(true, true, true, true)
+	for _, subtitle := range []string{"", "a colony on a planet that is not Earth"} {
+		m := testMenu(true, true, true, true)
+		m.Subtitle = subtitle
+		t.Run("subtitle="+subtitle, func(t *testing.T) { menuRowsFit(t, m) })
+	}
+}
+
+// menuRowsFit is the body of the test above, run once for a menu with a
+// subtitle and once for one without - the pause menu has none, and the header
+// reserves a line only when there is one, so the two lay out differently and
+// only one of them used to be checked.
+func menuRowsFit(t *testing.T, m *menu) {
+	t.Helper()
 	const dw, dh = 800, 600
 
 	panelTop := (dh - m.height()) / 2
@@ -137,18 +149,15 @@ func TestPointerHitsTheRowItIsOver(t *testing.T) {
 	}
 }
 
-// Both menus offer Load only when there is something to load, and say why when
-// there is not — a greyed row with no explanation reads as a bug.
-func TestLoadIsOfferedOnlyWithASaveAndExplainsWhyNot(t *testing.T) {
+// Both menus offer Load only when there is something to load. It is the one
+// row whose enabled state is a fact about the disk rather than about the game,
+// so it is the one that can be wrong without anyone noticing.
+func TestLoadIsOfferedOnlyWithASave(t *testing.T) {
 	g := &Game{}
 	g.cfg.SavePath = t.TempDir() + "/nothing-here.json"
 
-	item := g.loadItem()
-	if item.Enabled {
+	if g.loadItem().Enabled {
 		t.Error("offered Load with no save file")
-	}
-	if item.Note == "" {
-		t.Error("disabled Load with no explanation")
 	}
 
 	// Now write one.
@@ -226,5 +235,39 @@ func TestPauseAndResumeAreSymmetric(t *testing.T) {
 	}
 	if g.menu != nil {
 		t.Error("resume left a menu behind, which drawHUD would still paint")
+	}
+}
+
+// The title card outranks the menu. The game opens on screenMenu with the main
+// menu already built, so without this the logo shared its frame with New
+// Colony, Load Colony and Exit - a menu that was not listening yet, drawn over
+// a card that was.
+func TestTheTitleCardIsNotSharedWithTheMenu(t *testing.T) {
+	g := &Game{}
+	g.menu = g.mainMenu()
+
+	// The game opens here: the main menu is built and the screen is already
+	// screenMenu before the first frame is drawn. That is the whole setup for
+	// the bug, so the test says it rather than relying on a zero value.
+	g.screen = screenMenu
+
+	g.splash.up = true
+	if g.menuVisible() {
+		t.Error("the menu draws over the title card")
+	}
+
+	g.splash.up = false
+	if !g.menuVisible() {
+		t.Error("the menu does not appear once the title card is gone")
+	}
+
+	// And it still knows the other two reasons to stay hidden.
+	g.screen = screenPlaying
+	if g.menuVisible() {
+		t.Error("the menu draws during play")
+	}
+	g.screen, g.menu = screenMenu, nil
+	if g.menuVisible() {
+		t.Error("a menu that does not exist is visible")
 	}
 }

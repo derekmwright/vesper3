@@ -59,12 +59,6 @@ type menuItem struct {
 	Action menuAction
 	Label  string
 
-	// Note is the grey line under a label: what the choice does, or when
-	// Enabled is false, why it cannot be taken. A disabled choice that simply
-	// greys out leaves the player guessing; one that says "no save file yet"
-	// has answered them.
-	Note string
-
 	Enabled bool
 }
 
@@ -91,7 +85,10 @@ const (
 	menuPad    = 22
 	menuRowGap = 8
 	menuTitleH = 34
-	menuNoteDY = 26
+
+	// A label is the only thing in a row now, so it sits in the middle of one.
+	// Derived rather than measured, so it follows menuRowH if that moves.
+	menuLabelDY = (menuRowH - textMain*lineBox) / 2
 
 	// A row is a button, so it inherits the artwork's minimum: below twice the
 	// 24-unit nine-slice inset the corner regions overlap and the metal folds
@@ -117,17 +114,33 @@ func (m *menu) firstEnabled() int {
 	return 0
 }
 
+// headerH is the title block above the first row.
+//
+// It is one function rather than the same sum written twice because height and
+// rowRect both need it, and a menu whose rows are laid out to one header and
+// sized to another is a menu whose last button hangs off the panel.
+//
+// A menu with no subtitle does not reserve the line: the pause menu has none,
+// and the gap it used to leave under PAUSED read as a missing label rather
+// than as spacing.
+func (m *menu) headerH() float32 {
+	h := float32(menuPad + menuTitleH + 10)
+	if m.Subtitle != "" {
+		h += textSub * lineBox
+	}
+	return h
+}
+
 // height is how tall the menu's panel is, in design units.
 func (m *menu) height() float32 {
 	rows := float32(len(m.Items))
-	return menuPad + menuTitleH + textSub*lineBox + 10 +
-		rows*menuRowH + (rows-1)*menuRowGap + menuPad
+	return m.headerH() + rows*menuRowH + (rows-1)*menuRowGap + menuPad
 }
 
 // rowRect is where one row sits, so drawing and hit-testing cannot disagree.
 func (m *menu) rowRect(dw, dh float32, i int) rect {
 	x := (dw - menuW) / 2
-	y := (dh-m.height())/2 + menuPad + menuTitleH + textSub*lineBox + 10
+	y := (dh-m.height())/2 + m.headerH()
 	y += float32(i) * (menuRowH + menuRowGap)
 	return rect{x + menuPad, y, menuW - 2*menuPad, menuRowH}
 }
@@ -202,6 +215,15 @@ func (m *menu) take(i int) menuAction {
 	return m.Items[i].Action
 }
 
+// menuVisible reports whether the menu should be on screen.
+//
+// A function rather than a condition written inline at the one call site,
+// because the ordering it encodes is not obvious and is not otherwise
+// testable: drawing needs a renderer, and this is the part worth pinning.
+func (g *Game) menuVisible() bool {
+	return g.menu != nil && g.screen != screenPlaying && !g.splash.up
+}
+
 // draw paints the menu over whatever is already on screen.
 func (m *menu) draw(h *hud, dw, dh float32) {
 	// Dim the world behind it. The same veil the demolition prompt uses, for
@@ -232,10 +254,7 @@ func (m *menu) draw(h *hud, dw, dh float32) {
 		}
 
 		col := buttonLabelColor[state]
-		h.centred(r.X+r.W/2, r.Y+13+drop, textMain, col, "%s", it.Label)
-		if it.Note != "" {
-			h.centred(r.X+r.W/2, r.Y+menuNoteDY+9+drop, textSub, col, "%s", it.Note)
-		}
+		h.centred(r.X+r.W/2, r.Y+menuLabelDY+drop, textMain, col, "%s", it.Label)
 	}
 }
 
@@ -244,8 +263,7 @@ func (m *menu) draw(h *hud, dw, dh float32) {
 // mainMenu is what the game opens on.
 func (g *Game) mainMenu() *menu {
 	return newMenu("VESPER III", "a colony on a planet that is not Earth", []menuItem{
-		{Action: actionNewGame, Label: "New Colony", Enabled: true,
-			Note: "a new planet, from a new seed"},
+		{Action: actionNewGame, Label: "New Colony", Enabled: true},
 		g.loadItem(),
 		{Action: actionQuit, Label: "Exit", Enabled: true},
 	})
@@ -254,22 +272,20 @@ func (g *Game) mainMenu() *menu {
 // pauseMenu is what Escape opens during a game.
 func (g *Game) pauseMenu() *menu {
 	return newMenu("PAUSED", "", []menuItem{
-		{Action: actionResume, Label: "Resume", Enabled: true, Note: "or press Escape"},
-		{Action: actionSaveGame, Label: "Save Colony", Enabled: true, Note: g.cfg.SavePath},
+		{Action: actionResume, Label: "Resume", Enabled: true},
+		{Action: actionSaveGame, Label: "Save Colony", Enabled: true},
 		g.loadItem(),
-		{Action: actionExitToMenu, Label: "Exit to Menu", Enabled: true,
-			Note: "unsaved progress is lost"},
+		{Action: actionExitToMenu, Label: "Exit to Menu", Enabled: true},
 	})
 }
 
-// loadItem is shared by both menus, and is the reason menuItem has a Note:
-// "Load Colony" greyed out with nothing beside it reads as a bug, and the one
-// thing the player needs to know is that there is no save yet.
+// loadItem is shared by both menus. Load is offered only when there is
+// something to load, and its disabled artwork is what says so - the greyed
+// bevel and the dimmed label, rather than a line of text under it.
 func (g *Game) loadItem() menuItem {
-	if !g.haveSave() {
-		return menuItem{Action: actionLoadGame, Label: "Load Colony",
-			Note: "no save file yet", Enabled: false}
+	return menuItem{
+		Action:  actionLoadGame,
+		Label:   "Load Colony",
+		Enabled: g.haveSave(),
 	}
-	return menuItem{Action: actionLoadGame, Label: "Load Colony",
-		Note: g.cfg.SavePath, Enabled: true}
 }
