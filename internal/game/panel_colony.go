@@ -150,7 +150,7 @@ func (g *Game) drawPowerRow(h *hud, y float32, r colony.Readout, compact bool) {
 		label, col = "BROWNOUT", colWarn
 	}
 
-	h.label(panelX+rowTextX, y, textMain, colDim, "POWER")
+	h.rowLabel(y, iconPower, "POWER")
 	h.rightLabel(colStockR, y, textMain, colInk, "%.0f / %.0f", r.PowerSupply, r.PowerDemand)
 	h.rightLabel(colRateR, y, textMain, col, "%s", label)
 

@@ -73,7 +73,7 @@ const panelOpacity = 0.86
 const (
 	atlasPath = "assets/icons.png"
 	atlasCols = 4
-	atlasRows = 3
+	atlasRows = 4
 )
 
 // Resource cells, after the structures.
@@ -90,9 +90,10 @@ var (
 	iconIron    = iconWater + 1
 	iconCrystal = iconWater + 2
 	iconFood    = iconWater + 3
+	iconPower   = iconWater + 4
 
 	// iconCount is how many cells the atlas actually has to hold.
-	iconCount = iconWater + 4
+	iconCount = iconWater + 5
 )
 
 // The panel bezel texture and how it slices.
