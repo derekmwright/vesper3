@@ -153,6 +153,11 @@ type Game struct {
 	// splash is the title card; see splash.go.
 	splash splash
 
+	// screen is which of playing, main menu and paused the frame is doing,
+	// and menu is the one that is open. See menu.go.
+	screen screen
+	menu   *menu
+
 	// daylight is sampled in Update and consumed in FixedUpdate, which may
 	// run zero or several times per frame.
 	daylight float64
@@ -214,6 +219,15 @@ func (g *Game) Init(e *glyph.Engine) error {
 	g.foundLandingSite(e)
 	if g.cfg.Demo {
 		g.foundDemoColony(e)
+	}
+
+	// -nosplash means "skip the front end and give me the game", which is what
+	// every screenshot and capture command in this project wants. Without it
+	// the game opens on its menu.
+	if !g.cfg.NoSplash {
+		g.screen = screenMenu
+		g.menu = g.mainMenu()
+		g.frameBackdrop()
 	}
 
 	log.Printf("Vesper III: seed %d, %dx%d tiles, colony at %v",
@@ -291,6 +305,30 @@ func (g *Game) Update(e *glyph.Engine, dt float32) {
 		return
 	}
 
+	// A menu owns the frame the same way, and for the same reason. The world
+	// is still drawn and its sun still moves — that is what makes the main
+	// menu a window onto the game rather than a picture of it — but nothing
+	// behind the menu is listening.
+	if g.screen != screenPlaying {
+		// The camera still has to be handed over. Update returns before the
+		// SetCamera below, so without this the engine keeps whatever view it
+		// last had - which on the opening menu is its own default, pointing at
+		// nothing in particular.
+		if g.screen == screenMenu {
+			// A slow orbit, only on the main menu. Pausing a game must not
+			// move the camera: a player who paused to look at something wants
+			// it still there when they come back.
+			g.cam.Yaw += dt * menuOrbitRate
+			g.cam.Focus[1] = g.Map.SurfaceY(world.Layout.At(g.cam.Focus.X(), g.cam.Focus.Z()))
+		}
+		e.SetCamera(g.cam.ViewVectors())
+
+		g.handleMenu(e)
+		g.daylight = daylightFrom(e.Environment().SunElevation)
+		g.drawHUD(e)
+		return
+	}
+
 	// A prompt owns the frame: no camera, no world, no hotbar until it is
 	// answered.
 	if g.ui.confirm != nil {
@@ -325,7 +363,15 @@ func (g *Game) Update(e *glyph.Engine, dt float32) {
 }
 
 // FixedUpdate advances the economy on the simulation tick.
+//
+// A menu stops it. Pausing that left the colony running would mean coming back
+// from Save to find the water gone, which is not what a pause is for — and the
+// main menu's world is a backdrop nobody is playing, so ticking its economy
+// would be work done for a colony that is about to be thrown away.
 func (g *Game) FixedUpdate(_ *glyph.Engine, dt float32) {
+	if g.screen != screenPlaying {
+		return
+	}
 	g.Colony.Tick(float64(dt), g.daylight)
 }
 

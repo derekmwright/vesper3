@@ -113,10 +113,12 @@ func (g *Game) handleKeys(e *glyph.Engine) {
 		}
 	}
 
-	// Escape quits, but only when it is not doing something more local first.
-	// The prompt consumes it before this runs; see Update.
+	// Escape opens the in-game menu. It used to quit outright, which is a
+	// thing to do to a player exactly once. The demolition prompt consumes it
+	// before this runs; see Update.
 	if in.KeyPressed(input.KeyEscape) {
-		e.Close()
+		g.pause()
+		return
 	}
 
 	if in.KeyPressed(input.KeyF3) {

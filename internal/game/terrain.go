@@ -263,6 +263,21 @@ func (g *Game) initWater(e *glyph.Engine) error {
 
 // heightmap resamples the hex map onto the rectangular grid the water surface
 // and the raycast fast path need.
+// refreshTerrainHeights re-sends the heightmap the water pass reads for depth
+// and refraction. A new world changes every tile at once, so without this the
+// sea would be shaded against the continent that used to be there.
+//
+// Cheap: it recomputes a float grid and hands it over. No mesh is rebuilt, and
+// the water surface itself does not move because sea level has not.
+func (g *Game) refreshTerrainHeights(e *glyph.Engine) {
+	hm, err := g.heightmap()
+	if err != nil {
+		log.Printf("could not rebuild the heightmap: %v", err)
+		return
+	}
+	e.SetTerrain(hm)
+}
+
 func (g *Game) heightmap() (*glyph.Heightmap, error) {
 	minX, minZ, maxX, maxZ := g.Map.Bounds()
 	minX, minZ = minX-oceanMargin, minZ-oceanMargin

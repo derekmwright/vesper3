@@ -39,13 +39,31 @@ func (g *Game) drawHUD(e *glyph.Engine) {
 	// were this size, and h.scale turns it into pixels on the way out.
 	dw, dh := sw/h.scale, sh/h.scale
 
-	if g.splash.up {
+	switch {
+	case g.splash.up:
 		g.drawSplash(h, dw, dh)
-	} else {
+
+	case g.screen == screenMenu:
+		// Nothing. The main menu's world is a backdrop, not a colony: a
+		// resource panel reporting 0/0 colonists and an advisory telling
+		// nobody to build a habitat would be furniture from a game that is
+		// not being played.
+		//
+		// The pause menu keeps its panel, because there the numbers are real
+		// and checking them is half the reason to pause.
+
+	default:
 		g.drawColumn(h, dw, dh)
 		g.drawHotbar(h, dw, dh)
 		g.drawTooltip(h, dw, dh)
 		g.drawConfirm(h, dw, dh)
+	}
+
+	// The menu goes over everything, including the prompt: while it is open it
+	// is the only thing listening, so it had better be the only thing that
+	// looks like it is.
+	if g.screen != screenPlaying && g.menu != nil {
+		g.menu.draw(h, dw, dh)
 	}
 
 	if g.ui.showDebug {

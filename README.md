@@ -153,7 +153,7 @@ down to 512 by `cmd/texscale` before they are embedded. See
 | `F5` / `F9` | save and load |
 | `F3` | raw numbers over the panel (includes the lamp level) |
 | `[` `]` | interface scale |
-| `Esc` | quit |
+| `Esc` | the menu: save, load, back to the title |
 
 ## The game
 
@@ -278,7 +278,9 @@ and what it cost, and takes Enter or Escape as readily as the mouse.
 Escape is deliberately **not** handed to the engine as `WithQuitKey`. The
 engine's binding fires before the game sees the key, so cancelling a
 confirmation would have quit instead. The game handles it, where it can see
-whether anything is open first.
+what is open: the confirmation takes it first, then the pause menu, and only
+the Exit item in that menu actually closes the window. Escape used to quit
+outright, which is a thing you do to a player exactly once.
 
 `Shift` and the wheel turn the structure about to be placed, a sixth of a turn
 at a time — the grid's own symmetry, so it always sits square on its hexagon.
@@ -876,6 +878,64 @@ cannot go stale against the font it came from. Exo 2 is proportional, so every
 figure in the panel is right-aligned to a column edge: left-aligned, a number
 moves its own last digit each time the value changes, which turns a readout
 into a flicker.
+
+## The front end
+
+```
+splash  ->  main menu  ->  playing  <->  paused
+```
+
+A main menu with New Colony, Load Colony and Exit; Escape during a game opens
+the same widget with Resume, Save, Load and Exit to Menu. Both are one `menu`
+type — a title and a column of choices, driven by the keyboard and the pointer
+at the same time, sharing one highlight so the two can never disagree about
+what Enter would take.
+
+The widget holds no actions. `update` returns the id of what was chosen and
+`session.go` decides what that means, which is what lets the whole thing be
+tested without constructing an `Engine`.
+
+### There is no scene swap, and there does not need to be one
+
+Worth being explicit, because "main menu" usually implies loading a different
+scene. glyphengine has no such concept: an `Engine` owns exactly one `*Scene`,
+created once, and the `Game` interface it drives is `Init` plus `Update` for
+the lifetime of the process. There is no `SetScene`, no scene stack, nothing to
+unload.
+
+So this is a state flag inside one scene:
+
+- **One set of GPU resources for the whole process.** The font, the icon atlas,
+  the structure meshes, the water surface and the chunk meshes are all built in
+  `Init` and never rebuilt. None of them depend on which world is loaded.
+- **`screen` gates input and simulation.** `Update` returns early when a menu
+  is open, so the camera, the pick ray and the hotbar never see the frame;
+  `FixedUpdate` returns early too, so a paused colony does not quietly drink its
+  water while the player reads the menu.
+- **The world is replaced in place.** `startWorld` regenerates the map, clears
+  the building entities, re-uploads every chunk and refreshes the heightmap the
+  water shades against. That is the same operation terraforming already does on
+  one tile, at the scale of all of them.
+
+Which is not a workaround. Chunk meshes are dynamic and sized for a fixed grid
+precisely so they can be rewritten; tearing them down to build identical ones
+would be work for its own sake. The one real constraint is that the grid is
+fixed at startup — which is also why loading a save from a differently sized
+world is refused outright rather than half-applied.
+
+The main menu draws over a generated world with the camera framed on the whole
+continent and turning slowly, about three minutes to the revolution. A still
+image would be cheaper and would look like a photograph of the game instead of
+the game. Leaving to the menu generates a *new* world rather than keeping the
+abandoned one, so the backdrop is never the colony that was just given up on.
+
+The resource panel is hidden on the main menu and kept on the pause menu. On
+the main menu it would be furniture from a game nobody is playing — 0 of 0
+colonists, an advisory telling nobody to build a habitat. On the pause menu the
+numbers are real, and checking them is half the reason to pause.
+
+`-nosplash` skips the whole front end and opens straight into a game, which is
+what every capture command in this project wants.
 
 ## The title card
 

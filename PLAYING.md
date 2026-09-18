@@ -27,7 +27,7 @@ driver is almost always the fix.
 | `F5` `F9` | save and load |
 | `F3` | the raw numbers |
 | `[` `]` | interface scale |
-| `Esc` | quit |
+| `Esc` | the menu: save, load, back to the title |
 
 ## What to do
 
