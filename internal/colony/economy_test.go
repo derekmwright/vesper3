@@ -39,7 +39,11 @@ func TestEveryDrawIsSpentAndEveryOutputIsMade(t *testing.T) {
 	for i := range 4 {
 		mustPlace(t, c, m, SolarArray, world.FromOffset(2+i, 4))
 	}
-	c.Colonists = Of(Habitat).Housing // full, so the habitat eats at its rate
+	// Enough to fill the habitat *and* staff the five jobs below it. Occupancy
+	// caps at one, so a surplus does not change what the habitat eats - but
+	// four colonists against five jobs would run everything at 80% and this
+	// test is about the draws, not the labour supply.
+	c.Colonists = 8
 
 	c.Tick(1, 1)
 	r := c.Readout

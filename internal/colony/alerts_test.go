@@ -182,13 +182,17 @@ func TestAHealthyColonySaysNothing(t *testing.T) {
 	mustPlace(t, c, m, Greenhouse, world.FromOffset(4, 4))
 	mustPlace(t, c, m, Habitat, world.FromOffset(5, 5))
 	mustPlace(t, c, m, Habitat, world.FromOffset(5, 6))
+	mustPlace(t, c, m, Habitat, world.FromOffset(5, 7))
 
 	// Healthy means healthy under every rule the colony has, and two of them
 	// are newer than this test: the jobs above have to be staffed, and the
 	// stores have to have room left. Filling water and food to 1e5 used to be
 	// the definition of well supplied and is now a colony throwing away
 	// everything it makes.
-	c.Colonists = 14 // staffs the 7 jobs, inside the 16 beds
+	// Enough to staff the seven jobs, with beds to spare: the colony grows
+	// during the fifty ticks below, and filling its housing raises an
+	// advisory of its own.
+	c.Colonists = 7
 	c.Water, c.Food = 60, 60
 	for i := 0; i < 50; i++ {
 		c.Tick(0.1, 1)

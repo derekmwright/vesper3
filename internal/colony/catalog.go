@@ -130,17 +130,35 @@ const RefundFraction = 0.6
 var catalog = [kindCount]Spec{
 	Habitat: {
 		Name:     "Habitat",
-		Desc:     "Houses 8 colonists on water and food",
-		IronCost: 40,
+		Desc:     "Houses 4 colonists on water and food",
+		IronCost: 20,
 		Color:    [3]float32{0.82, 0.80, 0.74},
 		PowerIn:  4,
-		WaterIn:  0.10,
+		WaterIn:  0.05,
 
-		// Eight beds at FoodPerColonist each. The test in colony_test holds
+		// Four beds at FoodPerColonist each. The test in colony_test holds
 		// these two together so the catalog cannot drift from the constant
 		// the growth and starvation rules are written against.
-		FoodIn:  8 * FoodPerColonist,
-		Housing: 8,
+		//
+		// Four, not eight, and everything else here is per-capita identical —
+		// the water, the food, the iron and the stores all halved with it. So
+		// this is purely a change of *granularity*, and granularity turned out
+		// to be the whole problem.
+		//
+		// Jobs run 1 to 3. Housing ran 8, so one habitat staffed two and two
+		// thirds mines and labour almost never bound after the first one: the
+		// expansion loop this game is built on went slack three buildings in.
+		// At four a habitat is roughly one production building, which is a
+		// relationship a player can hold in their head.
+		//
+		// It also closed a trap. A habitat costs about 0.20 water a second at
+		// the margin — the drinking, plus the fraction of a greenhouse feeding
+		// it — so adding a third to a working colony overshot the water supply
+		// and cost people. Half-sized steps approach the ceiling instead of
+		// vaulting it, and cmd/balance shows the same build going from LOSING
+		// PEOPLE to stable.
+		FoodIn:  4 * FoodPerColonist,
+		Housing: 4,
 		Needs:   NeedsNothing,
 
 		// A habitat is where the larder and the tank are, so it carries the
@@ -149,8 +167,8 @@ var catalog = [kindCount]Spec{
 		// gains the room to keep what they dig.
 		//
 		// It employs nobody. Living somewhere is not a job.
-		WaterStore: 60,
-		FoodStore:  40,
+		WaterStore: 30,
+		FoodStore:  20,
 	},
 	SolarArray: {
 		// No staff: a panel that needs someone standing next to it is not a

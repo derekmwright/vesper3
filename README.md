@@ -162,10 +162,10 @@ start arriving to fill the habitat, and they eat, which is the first problem.
 
 | Structure | Cost | Needs | Does |
 |---|---|---|---|
-| Habitat | 40 iron | solid ground | houses 8; stores their food and water; draws power. **Employs nobody** |
+| Habitat | 20 iron | solid ground | houses 4; stores their food and water; draws power. **Employs nobody** |
 | Solar Array | 25 iron | solid ground | 14 power, **daylight only** |
 | Mine | 30 iron | ferrous dunes or a crystal flat | **iron or crystal, decided by the ground**; stockpiles it; draws power and water. **3 staff** |
-| Battery Bank | 50 iron + 20 crystal | anywhere | stores 600 power-seconds |
+| Battery Bank | 50 iron + 20 crystal | anywhere | stores 1500 power-seconds |
 | Ice Extractor | 30 iron | an ice sheet | water, quickly. **2 staff** |
 | Atmospheric Condenser | 35 iron | anywhere | water, slowly and at a price in power. **1 staff** |
 | Greenhouse | 35 iron | solid ground; **lichen yields 1.5x** | food from water and power; stores some. **2 staff** |
