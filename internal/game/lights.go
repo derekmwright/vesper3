@@ -33,9 +33,15 @@ const (
 	lampDuskEnd   = -0.04
 
 	// lampRange is how far a structure's light reaches, in world units. A tile
-	// is two across, so this pools light over the building and the ring of
-	// tiles around it without washing the whole colony into one blob.
-	lampRange = 4.0
+	// is two across, so this pools light over the building and the tiles
+	// around it without washing the whole colony into one blob.
+	//
+	// It was 4.0 while the engine's ceiling was 32 lights and every lamp had
+	// to earn its place. Clustered lighting raised that to 1024 and the cost
+	// was measured rather than feared: at 9.0 a demo colony puts seven lights
+	// screen-wide out of a thousand, and the worst cell holds twelve of a
+	// hundred and twenty-eight. The tuning was never near the budget.
+	lampRange = 9.0
 
 	// lampIntensity scales each lamp. It is low because these accumulate:
 	// point lights are unshadowed and additive, so a dozen structures at the
@@ -43,7 +49,17 @@ const (
 	// ground around the colony out to flat white and turned the buildings
 	// into silhouettes against it. One lamp should light its own tile and
 	// tint its neighbours, and the sum of a colony should still be night.
-	lampIntensity = 0.16
+	//
+	// That ceiling is real and this sits under it rather than at it: 0.45 with
+	// a 12-unit range flattens the ground to a pale sheet and the night stops
+	// being night. 0.30 at 9.0 is the widest, brightest pool that still falls
+	// off to dark ground inside the frame.
+	//
+	// Provisional. The plan is a lamp on a pole casting an actual spot, at
+	// which point this light stops being what illuminates a building and
+	// becomes the scattered glow around one - and a glow doing a key light's
+	// job is exactly what this number is currently set to.
+	lampIntensity = 0.30
 
 	// lampGlowFloor is how bright an accent is when the lamps first come on,
 	// so the transition starts from a visible ember rather than from nothing.
