@@ -142,6 +142,13 @@ type hud struct {
 	iconVerts []renderer.Vertex
 	iconIdx   []uint16
 
+	// The debug readout's backdrop is its own draw for the same reason the
+	// menu veil is not: it has to land on top of every panel, icon and bezel
+	// rather than under them, and draw order is layer order. One quad.
+	debugMesh  *renderer.Mesh
+	debugVerts []renderer.Vertex
+	debugIdx   []uint16
+
 	// The splash logo is its own texture and so its own draw again.
 	logo      *renderer.Texture
 	logoMesh  *renderer.Mesh
@@ -271,6 +278,12 @@ func (g *Game) initHUD(e *glyph.Engine) error {
 			h.icons, h.iconMesh = tex, iconMesh
 		}
 	}
+
+	debugMesh, err := r.CreateDynamicIndexedMesh(4, 6)
+	if err != nil {
+		return fmt.Errorf("debug backdrop mesh: %w", err)
+	}
+	h.debugMesh = debugMesh
 
 	g.hud = h
 	return nil

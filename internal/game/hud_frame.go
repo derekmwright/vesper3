@@ -8,6 +8,7 @@ import (
 	glyph "github.com/derekmwright/glyphengine"
 	"github.com/derekmwright/glyphengine/renderer"
 	"github.com/derekmwright/glyphengine/renderer/lightcluster"
+	"github.com/derekmwright/glyphengine/ui"
 )
 
 // The per-frame interface pass: what gets drawn, in what order, and what is
@@ -30,6 +31,7 @@ func (g *Game) drawHUD(e *glyph.Engine) {
 	h.verts, h.idx, h.lines = h.verts[:0], h.idx[:0], h.lines[:0]
 	h.iconVerts, h.iconIdx = h.iconVerts[:0], h.iconIdx[:0]
 	h.frameVerts, h.frameIdx = h.frameVerts[:0], h.frameIdx[:0]
+	h.debugVerts, h.debugIdx = h.debugVerts[:0], h.debugIdx[:0]
 	for _, layer := range h.buttons {
 		if layer != nil {
 			layer.verts, layer.idx = layer.verts[:0], layer.idx[:0]
@@ -59,7 +61,15 @@ func (g *Game) drawHUD(e *glyph.Engine) {
 		// and checking them is half the reason to pause.
 
 	default:
-		g.drawColumn(h, dw, dh)
+		// The readout and the resource column both live in the top-left, and
+		// they cannot share it. A backdrop is not enough on its own: this
+		// game's own text draws in a later channel than any UI overlay, so a
+		// sheet laid over the panel covers its background and none of its
+		// words. The panel steps aside instead - every figure on it is in the
+		// readout anyway, in more decimal places.
+		if !g.ui.showDebug {
+			g.drawColumn(h, dw, dh)
+		}
 		g.drawHotbar(h, dw, dh)
 		g.drawTooltip(h, dw, dh)
 		g.drawConfirm(h, dw, dh)
@@ -78,7 +88,7 @@ func (g *Game) drawHUD(e *glyph.Engine) {
 	}
 
 	if g.ui.showDebug {
-		g.drawDebugLines(e)
+		g.drawDebugLines(e, h)
 	}
 
 	if len(h.verts) > hudMaxQuads*4 && !h.overflowed {
@@ -186,6 +196,18 @@ func (g *Game) drawHUD(e *glyph.Engine) {
 		h.logoVerts, h.logoIdx = h.logoVerts[:0], h.logoIdx[:0]
 	}
 
+	// Last, and so on top of everything else the interface drew. The engine's
+	// debug text draws in a channel of its own above all overlays, so this
+	// lands between the two: over the panel it used to be illegible against,
+	// under the numbers it exists to make readable.
+	if h.debugMesh != nil && len(h.debugIdx) > 0 {
+		e.Renderer().UpdateMeshData(h.debugMesh, h.debugVerts, h.debugIdx)
+		overlays = append(overlays, renderer.UIRenderObject{
+			RenderObject: renderer.RenderObject{Mesh: h.debugMesh, MVP: proj},
+			Opacity:      debugBackdropOpacity,
+		})
+	}
+
 	e.SetUIOverlays(overlays)
 
 	h.text.SetText(e.Renderer(), h.lines, sw, sh)
@@ -227,16 +249,50 @@ func (g *Game) drawColumn(h *hud, dw, dh float32) {
 
 // drawDebugLines is the raw readout, behind F3, for numbers the panel
 // deliberately does not show.
-func (g *Game) drawDebugLines(e *glyph.Engine) {
+// Debug readout geometry, in the pixels the engine lays its debug text out in
+// (see Engine.Debugf: x 18, y 18 + line*24, scale 20).
+//
+// They are pixels rather than design units because the engine's text is: it is
+// drawn in a channel of its own that never sees this game's interface scale,
+// so a backdrop measured in design units would drift away from the text it is
+// meant to sit behind the moment anyone pressed [ or ].
+const (
+	debugTextX    = 18.0
+	debugTextY    = 18.0
+	debugLineH    = 24.0
+	debugTextSize = 20.0
+
+	// Go Mono's advance is 1229/2048 of the em. The engine picked a monospaced
+	// font so a changing value cannot shift the line after it, and the same
+	// property is what makes a backdrop measurable from a character count.
+	debugAdvance = debugTextSize * 1229 / 2048
+
+	debugPad = 8.0
+
+	// 0.86 is what every other panel uses, and the readout is a panel.
+	debugBackdropOpacity = panelOpacity
+)
+
+// debugBackdropColor is near-black rather than the panel's blue-grey: this sits
+// over the interface rather than over the world, and a tinted sheet on top of
+// a tinted panel reads as a rendering mistake.
+var debugBackdropColor = [3]float32{0.01, 0.012, 0.016}
+
+func (g *Game) drawDebugLines(e *glyph.Engine, h *hud) {
 	r := g.Colony.Readout
-	e.Debugf("seed %d   tiles %dx%d   fps %.0f", g.Map.Seed, g.Map.Cols, g.Map.Rows, e.FPS())
-	e.Debugf("daylight %.3f   satisfaction %.3f   lamps %.3f", r.Daylight, r.Satisfaction, g.lights.level)
-	e.Debugf("iron   %8.3f  make %.4f   crystal %8.3f  make %.4f",
-		g.Colony.Iron, r.Iron.Produced, g.Colony.Crystal, r.Crystal.Produced)
-	e.Debugf("water  %8.3f  make %.4f  use %.4f  coolant %.3f",
-		g.Colony.Water, r.Water.Produced, r.Water.Consumed, r.Coolant)
-	e.Debugf("food   %8.3f  make %.4f  use %.4f", g.Colony.Food, r.Food.Produced, r.Food.Consumed)
-	e.Debugf("cam    dist %.1f pitch %.2f yaw %.2f", g.cam.Distance, g.cam.Pitch, g.cam.Yaw)
+
+	// Collected rather than emitted one at a time, because the backdrop has to
+	// be sized from the longest line and drawn before any of them.
+	lines := []string{
+		fmt.Sprintf("seed %d   tiles %dx%d   fps %.0f", g.Map.Seed, g.Map.Cols, g.Map.Rows, e.FPS()),
+		fmt.Sprintf("daylight %.3f   satisfaction %.3f   lamps %.3f", r.Daylight, r.Satisfaction, g.lights.level),
+		fmt.Sprintf("iron   %8.3f  make %.4f   crystal %8.3f  make %.4f",
+			g.Colony.Iron, r.Iron.Produced, g.Colony.Crystal, r.Crystal.Produced),
+		fmt.Sprintf("water  %8.3f  make %.4f  use %.4f  coolant %.3f",
+			g.Colony.Water, r.Water.Produced, r.Water.Consumed, r.Coolant),
+		fmt.Sprintf("food   %8.3f  make %.4f  use %.4f", g.Colony.Food, r.Food.Produced, r.Food.Consumed),
+		fmt.Sprintf("cam    dist %.1f pitch %.2f yaw %.2f", g.cam.Distance, g.cam.Pitch, g.cam.Yaw),
+	}
 
 	// What the light binner did with what this game handed it. Worth a line
 	// because every number in it is one this game can move: it submits the
@@ -248,17 +304,56 @@ func (g *Game) drawDebugLines(e *glyph.Engine) {
 	// the part of the old every-light loop that survived - and lamp range is
 	// what makes a light screen-wide.
 	ls := e.LightStats()
-	e.Debugf("lights sent %d  drawn %d  culled %d  dropped %d  of %d",
-		ls.Submitted, ls.Uploaded, ls.Culled, ls.DroppedOverBudget, renderer.MaxLights)
-	e.Debugf("       screen-wide %d  unbounded %d  worst cell %d/%d  overflowed %d",
-		ls.ScreenWideLights, ls.UnboundedLights,
-		ls.MaxCellDemand, lightcluster.MaxLightsPerCell, ls.CellsOverflowed)
+	lines = append(lines,
+		fmt.Sprintf("lights sent %d  drawn %d  culled %d  dropped %d  of %d",
+			ls.Submitted, ls.Uploaded, ls.Culled, ls.DroppedOverBudget, renderer.MaxLights),
+		fmt.Sprintf("       screen-wide %d  unbounded %d  worst cell %d/%d  overflowed %d",
+			ls.ScreenWideLights, ls.UnboundedLights,
+			ls.MaxCellDemand, lightcluster.MaxLightsPerCell, ls.CellsOverflowed))
+
 	if g.intent.hovering {
-		e.Debugf("hover  %v", g.intent.hover)
+		lines = append(lines, fmt.Sprintf("hover  %v", g.intent.hover))
 	}
 	if g.ui.status != "" && g.elapsed < g.ui.statusUntil {
-		e.Debugf("> %s", g.ui.status)
+		lines = append(lines, fmt.Sprintf("> %s", g.ui.status))
 	}
+
+	g.drawDebugBackdrop(h, lines)
+	for _, l := range lines {
+		e.Debugf("%s", l)
+	}
+}
+
+// drawDebugBackdrop lays a dark sheet under the readout so it can be read over
+// the resource panel it overlaps.
+//
+// The two have always collided - both start in the top-left corner - and white
+// monospace over a lit panel was legible only by luck of what was behind it.
+func (g *Game) drawDebugBackdrop(h *hud, lines []string) {
+	if h.debugMesh == nil || len(lines) == 0 {
+		return
+	}
+
+	widest := 0
+	for _, l := range lines {
+		if len(l) > widest {
+			widest = len(l)
+		}
+	}
+
+	// Pixels to design units: quad multiplies by h.scale on the way out, and
+	// the numbers above are already in pixels.
+	k := h.scale
+	if k <= 0 {
+		return
+	}
+	x := (debugTextX - debugPad) / k
+	y := (debugTextY - debugPad) / k
+	w := (float32(widest)*debugAdvance + 2*debugPad) / k
+	ht := (float32(len(lines))*debugLineH + 2*debugPad) / k
+
+	h.debugVerts, h.debugIdx = ui.AppendQuad(h.debugVerts, h.debugIdx,
+		x*k, y*k, w*k, ht*k, debugBackdropColor)
 }
 
 func dayPhase(daylight float64) string {
