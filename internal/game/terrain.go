@@ -250,7 +250,7 @@ func (g *Game) initWater(e *glyph.Engine) error {
 	// Liquid methane, not water: darker, greener, and less transparent than
 	// the engine's lake defaults.
 	opts.ShallowColor = [3]float32{0.14, 0.31, 0.30}
-	opts.DeepColor = [3]float32{0.01, 0.05, 0.07}
+	opts.DeepColor = seabedColor
 	opts.AbsorptionDepth = 3.2
 
 	// The engine's rule, from the WaterOptions doc: the shortest wave

@@ -209,6 +209,9 @@ func (g *Game) Init(e *glyph.Engine) error {
 	if err := g.initStructures(e); err != nil {
 		return err
 	}
+	if err := g.initSeabed(e); err != nil {
+		return err
+	}
 	if err := g.initWater(e); err != nil {
 		return err
 	}
