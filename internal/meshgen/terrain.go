@@ -134,13 +134,6 @@ func BuildChunk(m *world.Map, id ChunkID, verts []renderer.Vertex, idx []uint16)
 	return verts, idx
 }
 
-// isSea reports whether a tile exists and is under water. A tile off the edge
-// of the map is not sea: the map's rim keeps its wall.
-func isSea(m *world.Map, a hex.Axial) bool {
-	t := m.At(a)
-	return t != nil && t.Terrain == world.Sea
-}
-
 // appendCap writes a tile's top face: a fan over an inner disc plus a darker
 // rim, which is what draws the grid on ground that is otherwise flat and one
 // colour.
@@ -191,27 +184,8 @@ func appendWalls(verts []renderer.Vertex, idx []uint16, m *world.Map, a hex.Axia
 	wall := scaleColor(col, wallShade)
 	foot := scaleColor(col, wallFootShade)
 
-	// A tile that is under water does not need a cliff face against another
-	// tile that is also under water.
-	//
-	// Every tile gets walls wherever the ground drops, sea floor included, and
-	// the sea floor has the same varied elevation the land does. Those faces
-	// are shaded darker than the caps they hang off, so through translucent
-	// water at a shallow angle they read as dark patches scattered over the
-	// shelf - geometry the player can neither reach nor build on, drawn only
-	// to be seen as noise.
-	//
-	// The coastline keeps its cliff: that drop is land against sea, so only
-	// one side is submerged and the test below is false.
-	submerged := isSea(m, a)
-
 	for d := 0; d < 6; d++ {
-		n := a.Neighbor(d)
-		if submerged && isSea(m, n) {
-			continue
-		}
-
-		below := world.SurfaceYAt(m.Elevation(n))
+		below := world.SurfaceYAt(m.Elevation(a.Neighbor(d)))
 		if below >= top {
 			continue
 		}
@@ -223,14 +197,14 @@ func appendWalls(verts []renderer.Vertex, idx []uint16, m *world.Map, a hex.Axia
 
 		// Outward normal of an edge on an anticlockwise polygon.
 		dx, dz := bx-ax, bz-az
-		out := normalize([3]float32{dz, 0, -dx})
+		n := normalize([3]float32{dz, 0, -dx})
 
 		v := uint16(len(verts))
 		verts = append(verts,
-			renderer.Vertex{Pos: [3]float32{ax, top, az}, Color: wall, Normal: out, UV: terrainNeutralUV},
-			renderer.Vertex{Pos: [3]float32{ax, below, az}, Color: foot, Normal: out, UV: terrainNeutralUV},
-			renderer.Vertex{Pos: [3]float32{bx, below, bz}, Color: foot, Normal: out, UV: terrainNeutralUV},
-			renderer.Vertex{Pos: [3]float32{bx, top, bz}, Color: wall, Normal: out, UV: terrainNeutralUV},
+			renderer.Vertex{Pos: [3]float32{ax, top, az}, Color: wall, Normal: n, UV: terrainNeutralUV},
+			renderer.Vertex{Pos: [3]float32{ax, below, az}, Color: foot, Normal: n, UV: terrainNeutralUV},
+			renderer.Vertex{Pos: [3]float32{bx, below, bz}, Color: foot, Normal: n, UV: terrainNeutralUV},
+			renderer.Vertex{Pos: [3]float32{bx, top, bz}, Color: wall, Normal: n, UV: terrainNeutralUV},
 		)
 		// aTop, aFoot, bFoot then aTop, bFoot, bTop: both wind opposite the
 		// outward normal.
