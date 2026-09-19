@@ -54,21 +54,24 @@ Suggested reading order:
 `docs/` has the captures. Every one was taken by the game itself with
 `-screenshot`, and the flags to re-take it are in the caption.
 
-![A colony on a basalt ridge: domes, solar arrays, a greenhouse and a battery bank, with the resource panel and build bar around them. A red translucent dome marks a placement that is not allowed.](docs/hud.png)
+![A colony on the coast in daylight: domes, solar arrays, a greenhouse, a geothermal plant and a mine, with the resource panel and the ten-slot build bar around them. A red hexagon marks a tile that is already built on.](docs/hud.png)
 
-*A colony in the afternoon. The red dome is the placement preview refusing an
-occupied tile — it is the real habitat mesh with its material stripped, not a
-stand-in. The panel reads left to right as stock against capacity, then rate; the strip
-under it names the building that fixes the problem rather than restating the
-number.*
+*A colony in the afternoon. The red hexagon is the cursor refusing an occupied
+tile — the placement preview itself stays off a tile that has something on it,
+because the preview is the real structure mesh and drawing it there reads as
+two buildings in one place rather than as a refusal. The panel reads left to
+right as stock against capacity, then rate; the strip under it names the
+building that fixes the problem rather than restating the number.*
 
-![The same colony after dark: green charge strips on the battery banks, cyan grow lights in the greenhouse, amber deck lamps, and a translucent green dome showing where the next habitat would go](docs/dusk.png)
+![The same colony after dark: cyan grow lights in the greenhouse, amber deck lamps pooling on the ground, and a translucent green dome showing where the next habitat would go](docs/dusk.png)
 
-*The same colony after sunset. The lights are not decoration — lamp brightness
-is the power grid's satisfaction, so a colony that cannot cover its own demand
-after dark goes dark. The battery banks show their charge on four strips and
-their state on the lamp above them; the greenhouse's grow lights are on because
-it has the power to run them.*
+*The same colony after sunset, and the reason the light budget is worth
+measuring. The lights are not decoration — lamp brightness is the power grid's
+satisfaction, so a colony that cannot cover its own demand after dark goes
+dark. The battery banks show their charge on four strips and their state on the
+lamp above them; the greenhouse's grow lights are on because it has the power
+to run them. The green dome is the placement preview on ground that will take
+it.*
 
 ![The continent of Vesper III from the top of the camera's zoom, hexagonal terrain in ochre, green and slate running to a methane sea](docs/vesper.png)
 
@@ -868,8 +871,8 @@ The cell a source lands in is the number on the front of its filename, so the
 ordering is visible in a directory listing:
 
 ```
-01-habitat.png .. 08-battery.png   the hotbar
-09-water.png .. 12-food.png        the resource rows
+01-habitat.png .. 10-synthesizer.png   the hotbar
+11-water.png .. 17-vespite.png        the resource rows
 ```
 
 Those numbers are read as numbers, not sorted as text. Sorting by name worked

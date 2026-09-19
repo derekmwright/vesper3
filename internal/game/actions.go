@@ -418,12 +418,30 @@ func (g *Game) updateCursor(e *glyph.Engine) {
 		c.R, c.G, c.B = col[0], col[1], col[2]
 	}
 
-	// The ghost only makes sense while building.
-	if g.intent.mode != ModeBuild {
+	if !g.ghostVisible() {
 		g.hideGhost(e)
 		return
 	}
 	g.showGhost(e, mgl32.Vec3{x, y, z}, facingYaw(g.intent.facing), col)
+}
+
+// ghostVisible reports whether the placement preview should be drawn.
+//
+// Only while building, and never over a tile that already has something on
+// it. The preview is the real structure mesh, so on an occupied tile it
+// interpenetrates whatever is standing there - a red habitat dome growing out
+// of a solar array, which reads as two buildings in one place rather than as a
+// refusal. The red tile marker underneath says "not here" on its own, and says
+// it about the tile rather than about a building that is never going to exist.
+//
+// Every other refusal still draws the ghost. On empty ground the mesh is the
+// useful half: it shows what would be placed and that it would not fit there.
+func (g *Game) ghostVisible() bool {
+	if !g.intent.hovering || g.intent.mode != ModeBuild {
+		return false
+	}
+	_, built := g.Colony.At(g.intent.hover)
+	return !built
 }
 
 // canActHere reports whether the current mode's action would succeed on the
