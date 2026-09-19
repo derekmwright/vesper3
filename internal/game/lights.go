@@ -146,42 +146,7 @@ func (g *Game) updateLights(e *glyph.Engine, sunElevation float32) {
 		return
 	}
 
-	eye := g.cam.Eye()
-	g.lights.scratch = g.lights.scratch[:0]
-
-	for _, b := range g.Colony.Buildings {
-		x, z := g.Map.Center(b.At)
-		y := g.Map.SurfaceY(b.At)
-		light := glyph.PointLight{
-			Pos:   mgl32.Vec3{x, y + .55, z},
-			Range: lampRange,
-			Color: lampWarm.Mul(level * lampIntensity),
-		}
-		if b.Kind == colony.Condenser && condenserPulsePart(g.scene.partsFor(b.Kind, b.Tier())) >= 0 {
-			phase, envelope := condenserSweep(g.elapsed, b.At, 0)
-			light.Pos[1] = y + (condenserPulseBase+phase*condenserPulseTravel)*modelScale
-			light.Range = condenserLightRange
-			light.Color = condenserPulseColor.Mul(level * condenserLightIntensity * (.65 + .35*envelope))
-		}
-
-		if tint, gain, radius, ok := g.activitySpill(b.Kind, b.At); ok {
-			light.Color = tint.Mul(level * gain)
-			light.Range = radius
-		}
-
-		if b.Kind == colony.Methane && g.methaneHasStack(b.Tier()) {
-			if flare := methaneFlare(g.elapsed, b.At); flare > .001 {
-				light.Pos = g.methaneStackPosition(b.At, b.Facing).Add(mgl32.Vec3{0, .10, 0})
-				light.Range = 1.65
-				light.Color = mgl32.Vec3{1, .44, .10}.Mul(level * (.16 + .75*flare))
-			}
-		}
-
-		g.lights.scratch = append(g.lights.scratch, lampCandidate{
-			light: light,
-			dist:  eye.Sub(mgl32.Vec3{x, y, z}).LenSqr(),
-		})
-	}
+	g.gatherLamps(level, g.cam.Eye())
 
 	// The engine takes at most renderer.MaxLights and truncates the rest, so
 	// choose which ones survive rather than letting slice order decide: the
@@ -221,6 +186,66 @@ const maxLamps = renderer.MaxLights
 type lampCandidate struct {
 	light glyph.PointLight
 	dist  float32
+}
+
+// gatherLamps fills the candidate list with every light the colony is casting
+// this frame, in no particular order.
+//
+// Split out of updateLights so it can be exercised without a renderer: it
+// needs a map, a colony and a camera position, and none of those need a GPU.
+// What it decides - how many lights a building contributes, and where they sit
+// - is the part worth pinning.
+func (g *Game) gatherLamps(level float32, eye mgl32.Vec3) {
+	g.lights.scratch = g.lights.scratch[:0]
+
+	for _, b := range g.Colony.Buildings {
+		x, z := g.Map.Center(b.At)
+		y := g.Map.SurfaceY(b.At)
+		light := glyph.PointLight{
+			Pos:   mgl32.Vec3{x, y + .55, z},
+			Range: lampRange,
+			Color: lampWarm.Mul(level * lampIntensity),
+		}
+		if b.Kind == colony.Condenser && condenserPulsePart(g.scene.partsFor(b.Kind, b.Tier())) >= 0 {
+			phase, envelope := condenserSweep(g.elapsed, b.At, 0)
+			light.Pos[1] = y + (condenserPulseBase+phase*condenserPulseTravel)*modelScale
+			light.Range = condenserLightRange
+			light.Color = condenserPulseColor.Mul(level * condenserLightIntensity * (.65 + .35*envelope))
+		}
+
+		if tint, gain, radius, ok := g.activitySpill(b.Kind, b.At); ok {
+			light.Color = tint.Mul(level * gain)
+			light.Range = radius
+		}
+
+		dist := eye.Sub(mgl32.Vec3{x, y, z}).LenSqr()
+		g.lights.scratch = append(g.lights.scratch, lampCandidate{light: light, dist: dist})
+
+		// The flare is a second light rather than a replacement for the first.
+		//
+		// It used to overwrite it - same variable, one light per building -
+		// so for the two seconds a stack burned, the plant's deck lamp moved
+		// up to the stack lip and its range fell from lampRange to a metre and
+		// a half. The building went dark exactly when it was most obviously
+		// doing something, which is the opposite of what the flare is for.
+		//
+		// One light per building was the rule when the engine held 32 of them
+		// and every one had to earn its place. It holds 1024 now, and a colony
+		// at fourteen lights can afford a second one on the handful of plants
+		// that happen to be burning.
+		if b.Kind == colony.Methane && g.methaneHasStack(b.Tier()) {
+			if flare := methaneFlare(g.elapsed, b.At); flare > .001 {
+				g.lights.scratch = append(g.lights.scratch, lampCandidate{
+					light: glyph.PointLight{
+						Pos:   g.methaneStackPosition(b.At, b.Facing).Add(mgl32.Vec3{0, flareLightLift, 0}),
+						Range: flareLightRange,
+						Color: flareLightColor.Mul(level * (flareLightFloor + flareLightGain*flare)),
+					},
+					dist: dist,
+				})
+			}
+		}
+	}
 }
 
 // lampPart and lampBase resolve a structure's accent for a given tier, falling

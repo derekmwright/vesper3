@@ -16,6 +16,21 @@ const (
 	flareMaxInstances = flareMaxStacks * flareParticles
 )
 
+// The flare's own light, which sits at the stack lip alongside the plant's
+// deck lamp rather than instead of it. Short range on purpose: it is a flame
+// on a pipe, and the broad pool around the building is the lamp's job.
+const (
+	flareLightLift  = .10
+	flareLightRange = 1.65
+
+	// A floor so an ignition does not pop from nothing, and a gain so the
+	// flicker reaches the ground.
+	flareLightFloor = .16
+	flareLightGain  = .75
+)
+
+var flareLightColor = mgl32.Vec3{1, .44, .10}
+
 // Tier 1 authored stack lip: Blender (-.40, .53, 1.66), scaled .8/1.17
 // and converted to glTF Y-up. This is a visual vent, not simulated fuel loss.
 var methaneStackLocal = mgl32.Vec3{-.27350428, 1.1350428, -.36239317}
